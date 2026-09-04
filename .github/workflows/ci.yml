@@ -1,7 +1,4 @@
-# This workflow will install Python dependencies, run tests and lint with a variety of Python versions
-# For more information see: https://help.github.com/actions/language-and-framework-guides/using-python-with-github-actions
-
-name: CI
+name: Course CI
 
 on:
   push:
@@ -10,65 +7,56 @@ on:
     branches: [master]
 
 jobs:
-  build:
+  smoke-test:
+    runs-on: ubuntu-latest
     env:
       TERM: xterm-256color
       FORCE_COLOR: 1
-      HF_TOKEN: ${{ secrets.HF_TOKEN }}
-    # Skip CI if [ci skip] in the commit message
-    if: "! contains(toJSON(github.event.commits.*.message), '[ci skip]')"
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ["3.10", "3.11", "3.12", "3.13"]
-        include:
-          # Default version
-          - gymnasium-version: "1.0.0"
-          # Add a new config to test gym<1.0
-          - python-version: "3.10"
-            gymnasium-version: "0.29.1"
     steps:
-      - uses: actions/checkout@v6
+      - name: Check out repository without pretrained-agent submodule
+        uses: actions/checkout@v6
         with:
-          submodules: true
-      - name: Set up Python ${{ matrix.python-version }}
+          submodules: false
+
+      - name: Set up Python 3.12
         uses: actions/setup-python@v6
         with:
-          python-version: ${{ matrix.python-version }}
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          # Use uv for faster downloads
-          pip install uv
-          # cpu version of pytorch
-          # See https://github.com/astral-sh/uv/issues/1497
-          # Need Pytorch 2.9+ for Python 3.13
-          uv pip install --system torch==2.9.1+cpu --index https://download.pytorch.org/whl/cpu
-          # Use headless version
-          uv pip install --system opencv-python-headless
-          # Install full requirements (for additional envs and test tools)
-          uv pip install --system -e .[plots,tests,extras]
+          python-version: "3.12"
 
-      - name: Install specific version of gym
-        run: |
-          uv pip install --system gymnasium==${{ matrix.gymnasium-version }}
-          uv pip install --system "numpy<2"
-          uv pip install --system "ale-py==0.10.1"
-        # Only run for python 3.10, downgrade gym to 0.29.1
-        if: matrix.gymnasium-version != '1.0.0'
+      - name: Install uv
+        run: python -m pip install uv==0.12.9
 
-      - name: Lint with ruff
+      - name: Install the complete course environment
+        run: uv sync --locked --all-extras
+
+      - name: Check Python and lockfile
         run: |
-          make lint
-      - name: Check codestyle
+          uv run --locked python --version
+          uv lock --check
+
+      - name: Check core imports
+        run: >-
+          uv run --locked python -c
+          "import gymnasium, stable_baselines3, rl_zoo3, mujoco, pybullet, wandb;
+          print('Imports OK')"
+
+      - name: Check LunarLander, MuJoCo, and PyBullet environments
         run: |
-          make check-codestyle
-      - name: Build the doc
-        run: |
-          make doc
-      - name: Type check
-        run: |
-          make type
-      - name: Test with pytest
-        run: |
-          make pytest
+          uv run --locked python -c "import gymnasium as gym; env = gym.make('LunarLander-v3'); env.reset(seed=0); env.close()"
+          uv run --locked python -c "import gymnasium as gym; env = gym.make('HalfCheetah-v4'); env.reset(seed=0); env.close()"
+          uv run --locked python -c "import gymnasium as gym; import rl_zoo3.import_envs; env = gym.make('HalfCheetahBulletEnv-v0'); env.reset(seed=0); env.close()"
+
+      - name: Check ffmpeg
+        run: ffmpeg -version
+
+      - name: Run a short PPO LunarLander training
+        run: >-
+          uv run --locked python train.py
+          --algo ppo
+          --env LunarLander-v3
+          --n-timesteps 512
+          --seed 0
+          --device cpu
+          --eval-freq -1
+          --log-folder /tmp/rl-zoo-smoke
+          -params n_envs:1 n_steps:128 batch_size:64 n_epochs:1

@@ -43,14 +43,6 @@ spelling:
 clean:
 	cd docs && make clean
 
-docker: docker-cpu docker-gpu
-
-docker-cpu:
-	./scripts/build_docker.sh
-
-docker-gpu:
-	USE_GPU=True ./scripts/build_docker.sh
-
 # PyPi package release
 release:
 	# rm -r build/* dist/*
@@ -63,4 +55,4 @@ test-release:
 	python -m build
 	twine upload --repository-url https://test.pypi.org/legacy/ dist/*
 
-.PHONY: lint format check-codestyle commit-checks doc spelling docker type pytest
+.PHONY: lint format check-codestyle commit-checks doc spelling type pytest
