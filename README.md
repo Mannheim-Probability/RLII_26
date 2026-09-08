@@ -1,32 +1,56 @@
-# RLII_26
+# Reinforcement Learning II · University of Mannheim · Fall 2026
 
-Gemeinsames Repository für die universitäre Vorlesung **Reinforcement Learning II 2026**.
+Shared repository for **Reinforcement Learning II 2026** at the University of
+Mannheim. This teaching fork builds on
+[RL Baselines3 Zoo](https://github.com/DLR-RM/rl-baselines3-zoo), with the Zoo
+infrastructure largely unchanged and teaching material under `course/`.
+The course starts with its core workflows; you are welcome to explore additional
+upstream tools in your own branch.
 
-Dieses Repository basiert auf dem
-[RL Baselines3 Zoo](https://github.com/DLR-RM/rl-baselines3-zoo) und verwendet dessen
-reale Experiment-Infrastruktur für Stable-Baselines3. Der Zoo-Code bleibt weitgehend
-unverändert; kursbezogene Materialien werden schrittweise in `course/` ergänzt.
+## Gymnasium, Stable-Baselines3 and RL Zoo
 
-## Voraussetzungen
+Gymnasium defines the environment interface: observations, actions, rewards and
+episode boundaries. Stable-Baselines3 (SB3) provides reinforcement learning
+algorithms implemented in PyTorch, including PPO. RL Baselines3 Zoo connects
+these algorithms to experiment configuration, training, evaluation, hyperparameter
+tuning, plotting and video recording. Environment-specific configurations live
+in `hyperparams/`.
 
-- Git
-- `uv` zur Verwaltung von Python, virtueller Umgebung und Paketen
-- `ffmpeg` für spätere Videoerzeugung
+References:
 
-Python muss nicht separat installiert werden. `uv` installiert die für den Kurs
-festgelegte Python-Version 3.12.
+- [Stable-Baselines3 documentation](https://stable-baselines3.readthedocs.io/en/master/)
+- [RL Baselines3 Zoo documentation](https://rl-baselines3-zoo.readthedocs.io/en/master/)
+- [Gymnasium documentation](https://gymnasium.farama.org/)
 
-### `uv` einmalig installieren
+## Installation
 
-Wenn `uv --version` bereits funktioniert, kann dieser Abschnitt übersprungen werden.
+The course setup has been tested on macOS. Linux and Windows commands are included,
+but platform-specific dependencies may require additional setup.
 
-macOS mit Homebrew:
+### Prerequisites
+
+- Git to clone the repository and manage changes.
+- `uv` to manage Python, the virtual environment and packages. It combines tasks
+  commonly handled by `pip` and `venv`, using `pyproject.toml` and `uv.lock` to
+  reproduce the project's dependencies.
+- A Bash-capable terminal for the training scripts. On Windows, use Git Bash or WSL.
+- `ffmpeg` if you later generate videos. It is not needed to play the included
+  introductory video in the notebook.
+
+You do not need to install Python separately: `uv` can install the course's
+Python version, 3.12.
+
+### Install uv once
+
+Skip this step if `uv --version` already works.
+
+macOS with Homebrew:
 
 ```bash
 brew install uv
 ```
 
-macOS oder Linux ohne Homebrew:
+macOS or Linux without Homebrew:
 
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -38,133 +62,131 @@ Windows PowerShell:
 winget install --id=astral-sh.uv -e
 ```
 
-Anschließend gegebenenfalls ein neues Terminal öffnen und prüfen:
+Open a new terminal if needed, then check:
 
 ```bash
 uv --version
 ```
 
-## Repository installieren
+### Install the repository
 
 ```bash
 git clone https://github.com/Mannheim-Probability/RLII_26.git
 cd RLII_26
-
 uv python install 3.12
 ```
 
-Abhängig vom Betriebssystem folgt der vollständige Paket-Sync.
-
-macOS benötigt für den PyBullet-Quell-Build eine zusätzliche Compiler-Option:
+On macOS, use the additional compiler flag for the PyBullet source build:
 
 ```bash
 CFLAGS="-fno-define-target-os-macros" uv sync --locked --all-extras
 ```
 
-Linux und Windows:
+On Linux and Windows:
 
 ```bash
 uv sync --locked --all-extras
 ```
 
-Der Sync erstellt automatisch `.venv`, installiert dieses Repository im
-Editable Mode und richtet den vollständigen Kursumfang ein. Dazu gehören unter
-anderem Gymnasium mit Box2D, Stable-Baselines3, MuJoCo, PyBullet, Plotting,
-Video-Unterstützung und Weights & Biases.
+This creates `.venv`, installs the repository in editable mode and installs the
+course dependencies: Gymnasium with Box2D, SB3, MuJoCo, PyBullet, plotting and video
+tools, Weights & Biases, and the `notebooks` extra with JupyterLab and ipykernel.
+The notebook packages are included in `uv.lock`; no separate `pip` installation
+is needed. Editable mode means imports use the code in this checkout.
 
-Eine manuelle Aktivierung der virtuellen Umgebung ist nicht erforderlich. Befehle
-werden mit `uv run --locked ...` in der Projektumgebung ausgeführt.
+Use `uv run --locked --all-extras ...` to run commands in the project environment
+without activating it manually. Keep `--all-extras` when synchronizing so optional
+course packages remain installed.
 
-## Installation prüfen
+### Verify the installation
 
-Python und Lockfile:
+Python and lockfile:
 
 ```bash
-uv run --locked python --version
+uv run --locked --all-extras python --version
 uv lock --check
 ```
 
-Zentrale Pakete:
+Core and notebook packages:
 
 ```bash
-uv run --locked python -c "import gymnasium, stable_baselines3, rl_zoo3, mujoco, pybullet, wandb; print('Imports OK')"
+uv run --locked --all-extras python -c "import gymnasium, stable_baselines3, rl_zoo3, mujoco, pybullet, wandb, ipykernel, jupyterlab; print('Imports OK')"
 ```
 
 LunarLander/Box2D:
 
 ```bash
-uv run --locked python -c "import gymnasium as gym; env = gym.make('LunarLander-v3'); obs, info = env.reset(seed=0); print(obs.shape, env.action_space); env.close()"
+uv run --locked --all-extras python -c "import gymnasium as gym; env = gym.make('LunarLander-v3'); obs, info = env.reset(seed=0); print(obs.shape, env.action_space); env.close()"
 ```
 
 MuJoCo:
 
 ```bash
-uv run --locked python -c "import gymnasium as gym; env = gym.make('HalfCheetah-v4'); obs, info = env.reset(seed=0); print(obs.shape); env.close()"
+uv run --locked --all-extras python -c "import gymnasium as gym; env = gym.make('HalfCheetah-v4'); obs, info = env.reset(seed=0); print(obs.shape); env.close()"
 ```
 
 PyBullet:
 
 ```bash
-uv run --locked python -c "import gymnasium as gym; import rl_zoo3.import_envs; env = gym.make('HalfCheetahBulletEnv-v0'); obs, info = env.reset(seed=0); print(obs.shape); env.close()"
+uv run --locked --all-extras python -c "import gymnasium as gym; import rl_zoo3.import_envs; env = gym.make('HalfCheetahBulletEnv-v0'); obs, info = env.reset(seed=0); print(obs.shape); env.close()"
 ```
 
-Auf macOS kann PyBullet dabei Warnungen zu mehrfach geladenen SDL-Klassen aus
-OpenCV und Pygame ausgeben. Wenn der Befehl mit der Observation-Form endet und
-keinen Fehlercode liefert, ist der Smoke Test erfolgreich.
+On macOS, PyBullet may print warnings about duplicate SDL classes from OpenCV and
+Pygame. If the command prints the observation shape and exits successfully, the
+smoke test has passed.
 
-Video-Werkzeug:
+## Lecture 01: explore the repository
+
+Launch the [Lecture 01 notebook](course/lecture_01/lecture_01.ipynb):
 
 ```bash
-ffmpeg -version
+uv run --locked --all-extras jupyter lab course/lecture_01/lecture_01.ipynb
 ```
 
-## Kurzer PPO-Test
+In VS Code, select the repository's `.venv` interpreter as the notebook kernel.
+See [the notebook guide](course/lecture_01/NOTEBOOK.md) for details. The introductory
+video is included at
+`course/lecture_01/videos/generated/training_progress/training.mp4` and appears
+when you execute the video cell. You do not need to generate it or train a model first.
 
-Dieser Lauf prüft nur die Trainingspipeline; er erzeugt noch keinen gut trainierten
-Agenten:
+The [example training script](course/lecture_01/scripts/train_ppo_example.sh)
+launches a short PPO run on CartPole through `train.py`:
 
 ```bash
-uv run --locked python train.py \
-  --algo ppo \
-  --env LunarLander-v3 \
-  --n-timesteps 512 \
-  --seed 0 \
-  --device cpu \
-  --eval-freq -1 \
-  -params n_envs:1 n_steps:128 batch_size:64 n_epochs:1
+uv run --locked --all-extras bash course/lecture_01/scripts/train_ppo_example.sh
 ```
 
-Trainingsausgaben werden unter `logs/` abgelegt und nicht mit Git versioniert.
-
-## Weights & Biases
-
-Das Python-Paket wird bei der vollständigen Installation eingerichtet. Ein Account
-und Login werden erst benötigt, wenn W&B in einer späteren Vorlesung verwendet wird:
+The notebook assignment asks you to adapt this file for PPO on LunarLander with
+one million training timesteps per run and at least three different training seeds.
+Use the notebook's flag descriptions and the CLI help to work out the changes:
 
 ```bash
-uv run --locked wandb login
+uv run --locked --all-extras python train.py --help
 ```
 
-API-Keys und andere Zugangsdaten dürfen niemals in dieses Repository committed
-werden.
+The final notebook cells read your completed runs and generate one evaluation
+plot: the mean across training seeds with a shaded ±1 standard error region.
+Training logs, models and resulting plots stay under `logs/` and are not committed.
+Clear notebook outputs before committing your own notebook changes.
 
-## Repository-Überblick
+## Repository overview
 
-- `rl_zoo3/`: Experiment-Infrastruktur des RL Baselines3 Zoo
-- `hyperparams/`: Zoo-Hyperparameter für Algorithmen und Environments
-- `train.py`, `enjoy.py`: gut sichtbare Top-Level-Entrypoints
-- `scripts/`: Plot-, Video- und Experimentwerkzeuge des Zoos
-- `tests/`: Upstream-Tests und spätere Kurs-Tests
-- `docs/`: Referenzdokumentation des Zoos
-- `course/`: wird für Vorlesungen, Übungen und Setup-Anleitungen ergänzt
+- `rl_zoo3/`: RL Baselines3 Zoo experiment infrastructure.
+- `hyperparams/`: algorithm and environment configurations.
+- `train.py`, `enjoy.py`: top-level training and policy evaluation entry points.
+- `scripts/`: upstream plotting, video and experiment utilities.
+- `tests/`: upstream tests and course tests as they are added.
+- `docs/`: upstream reference documentation.
+- `course/`: lecture notebooks, exercises and setup guides.
+- `pyproject.toml`, `uv.lock`, `.python-version`: dependencies and Python version.
 
-Das Submodule `rl-trained-agents` enthält Upstream-Modelle. Es wird für den normalen
-Kurs-Workflow nicht benötigt und soll deshalb nicht initialisiert werden.
+The upstream `rl-trained-agents` submodule is not needed for the course workflow;
+leave it uninitialized.
 
-## Herkunft und Lizenz
+## Origin and license
 
-Der Ausgangspunkt dieses Lehr-Forks ist
-[`DLR-RM/rl-baselines3-zoo`](https://github.com/DLR-RM/rl-baselines3-zoo), Commit
+This teaching fork started from
+[`DLR-RM/rl-baselines3-zoo`](https://github.com/DLR-RM/rl-baselines3-zoo), commit
 `bef2e8fda66c792ee3ae733eaa6d22294b00737e`.
 
-Der Upstream-Code steht unter der MIT-Lizenz; siehe [LICENSE](LICENSE).
+The upstream code is distributed under the MIT license; see [LICENSE](LICENSE).

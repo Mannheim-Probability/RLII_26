@@ -41,3 +41,10 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+
+# Ship the Lecture 01 introductory video; other generated videos stay ignored.
+!course/lecture_01/videos/generated/training_progress/training.mp4
+
+# Local notebook backups and lint caches
+.ipynb_checkpoints/
+.ruff_cache/
