@@ -228,7 +228,7 @@ def train() -> None:
             monitor_gym=True,  # auto-upload the videos of agents playing the game
             save_code=True,  # optional
         )
-        args.tensorboard_log = f"runs/{run_name}"
+        args.tensorboard_log = os.path.abspath(f"runs/{run_name}")
 
     exp_manager = ExperimentManager(
         args,
@@ -286,6 +286,9 @@ def train() -> None:
             exp_manager.save_trained_model(model)
     else:
         exp_manager.hyperparameters_optimization()
+
+    if args.track:
+        run.finish()
 
 
 if __name__ == "__main__":

@@ -8,6 +8,56 @@
         "version": "0.2.0",
         "configurations":[
             {
+                "name": "Lecture 02: Silly PPO (debug)",
+                "type": "debugpy",
+                "request": "launch",
+                "program": "${workspaceFolder}/course/lecture_02/scripts/train.py",
+                "cwd": "${workspaceFolder}",
+                "python": "${workspaceFolder}/.venv/bin/python",
+                "windows": {
+                    "python": "${workspaceFolder}/.venv/Scripts/python.exe"
+                },
+                "args": [
+                    "--algo",
+                    "ppo_silly",
+                    "--conf-file",
+                    "${workspaceFolder}/hyperparams/ppo.yml",
+                    "--env",
+                    "LunarLander-v3",
+                    "--n-timesteps",
+                    "256",
+                    "--seed",
+                    "0",
+                    "--eval-freq",
+                    "128",
+                    "--eval-episodes",
+                    "2",
+                    "--n-eval-envs",
+                    "1",
+                    "--device",
+                    "cpu",
+                    "--num-threads",
+                    "1",
+                    "--hyperparams",
+                    "n_envs:1",
+                    "n_steps:32",
+                    "batch_size:16",
+                    "n_epochs:1",
+                    "normalize_advantage:False",
+                    "--tensorboard-log",
+                    "logs/lecture_02/debug/silly/tensorboard",
+                    "--uuid",
+                    "-f",
+                    "logs/lecture_02/debug/silly"
+                ],
+                "console": "integratedTerminal",
+                "justMyCode": false,
+                "stopOnEntry": true,
+                "env": {
+                    "MPLCONFIGDIR": "${workspaceFolder}/logs/lecture_02/debug/.cache/matplotlib"
+                }
+            },
+            {
                 "name": "Lecture 01: PPO LunarLander (debug)",
                 "type": "debugpy",
                 "request": "launch",

@@ -151,3 +151,36 @@ def test_gym_packages(tmp_path):
     )
     return_code = subprocess.call(shlex.split(cmd), env=env_variables)
     _assert_eq(return_code, 0)
+
+
+def test_wandb_log_path_and_finish(tmp_path, monkeypatch):
+    import importlib
+    import sys
+    from pathlib import Path
+    from types import SimpleNamespace
+
+    training = importlib.import_module("rl_zoo3.train")
+    calls = []
+    paths = []
+    run = SimpleNamespace(
+        config=SimpleNamespace(setdefaults=lambda values: None),
+        finish=lambda: calls.append("finish"),
+    )
+
+    def experiment_manager(args, algo, env_id, log_folder, tensorboard_log, *positional, **kwargs):
+        paths.append(Path(tensorboard_log))
+        return SimpleNamespace(
+            setup_experiment=lambda: (object(), {}),
+            learn=lambda model: calls.append("learn"),
+            save_trained_model=lambda model: calls.append("save"),
+        )
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(sys, "argv", ["train.py", "--algo", "ppo", "--env", "CartPole-v1", "--seed", "0", "--track"])
+    monkeypatch.setitem(sys.modules, "wandb", SimpleNamespace(init=lambda **kwargs: run))
+    monkeypatch.setattr(training, "ExperimentManager", experiment_manager)
+    training.train()
+
+    assert paths[0].is_absolute()
+    assert paths[0].parent == tmp_path / "runs"
+    assert calls == ["learn", "save", "finish"]

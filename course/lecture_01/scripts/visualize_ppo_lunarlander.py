@@ -80,7 +80,7 @@ def assignment_runs(root: Path) -> dict[int, Path]:
     """Select the latest completed assignment run for each distinct training seed."""
     selected = {}
     for run in root.glob("ppo/LunarLander-v3_*"):
-        suffix = run.name.rsplit("_", 1)[-1]
+        suffix = run.name.split("_", 2)[1]
         if not suffix.isdigit():
             continue
         metadata = run / "LunarLander-v3" / "args.yml"
@@ -100,7 +100,10 @@ def assignment_runs(root: Path) -> dict[int, Path]:
                     or results.ndim != 2 or results.shape[0] != len(steps)
                     or results.shape[1] == 0 or not np.isfinite(results).all()):
                 continue
-        if seed not in selected or int(suffix) > int(selected[seed].name.rsplit("_", 1)[-1]):
+        if seed not in selected or (
+            (run / "LunarLander-v3.zip").stat().st_mtime_ns
+            > (selected[seed] / "LunarLander-v3.zip").stat().st_mtime_ns
+        ):
             selected[seed] = run
     if len(selected) < 3:
         raise ValueError(
