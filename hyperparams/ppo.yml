@@ -3,6 +3,19 @@ default:
   n_timesteps: !!float 1e6
   policy: 'MlpPolicy'
 
+SupplyChain-v0:
+  n_timesteps: !!float 1e7
+  policy: 'MultiInputPolicy'
+
+SupplyChainNS-v0:
+  n_timesteps: !!float 1e7
+  policy: 'MultiInputPolicy'
+
+SupplyChain-v1:
+  n_timesteps: !!float 1e7
+  policy: 'MultiInputPolicy'
+
+
 atari:
   env_wrapper:
     - stable_baselines3.common.atari_wrappers.AtariWrapper

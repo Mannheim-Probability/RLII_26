@@ -3,6 +3,7 @@ from typing import Optional
 
 import gymnasium as gym
 from gymnasium.envs.registration import register, register_envs
+import rl_zoo3.custom_envs
 
 from rl_zoo3.wrappers import MaskVelocityWrapper
 
