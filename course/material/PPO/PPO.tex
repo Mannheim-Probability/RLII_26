@@ -1,0 +1,312 @@
+% Standalone lecture script. Compile with: latexmk -pdf PPO.tex
+\documentclass[11pt,a4paper]{article}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{newtxtext,newtxmath}
+\usepackage[margin=23mm,top=22mm,bottom=23mm,headheight=15pt]{geometry}
+\usepackage{microtype}
+\usepackage{amsmath}
+\usepackage{xcolor,booktabs,tabularx,enumitem}
+\usepackage[most]{tcolorbox}
+\usepackage{tikz,pgfplots}
+\usepackage{fancyhdr,titlesec}
+\usepackage{hyperref}
+\pgfplotsset{compat=1.18}
+\definecolor{ink}{HTML}{18374A}
+\definecolor{accent}{HTML}{087F8C}
+\definecolor{pale}{HTML}{EEF6F6}
+\definecolor{muted}{HTML}{536572}
+\definecolor{warm}{HTML}{BD6735}
+\hypersetup{colorlinks=true,linkcolor=accent,urlcolor=accent,citecolor=accent,
+  pdftitle={PPO},pdfauthor={RL II 2026}}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\sffamily\color{muted}RL II 2026}
+\fancyhead[R]{\small\sffamily\color{muted}PPO}
+\fancyfoot[R]{\small\sffamily\color{muted}\thepage}
+\renewcommand{\headrulewidth}{0.3pt}
+\titleformat{\section}{\Large\sffamily\bfseries\color{ink}}{\thesection}{0.65em}{}
+\titleformat{\subsection}{\normalsize\sffamily\bfseries\color{ink}}{}{0pt}{}
+\titlespacing*{\section}{0pt}{0pt}{12pt}
+\titlespacing*{\subsection}{0pt}{10pt}{4pt}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6pt plus 1pt}
+\setlist{leftmargin=1.5em,itemsep=4pt,topsep=4pt}
+\newtcolorbox{idea}[1]{enhanced,breakable,colback=pale,colframe=accent,
+  boxrule=0pt,borderline west={2pt}{0pt}{accent},arc=0pt,
+  left=9pt,right=9pt,top=7pt,bottom=7pt,
+  title={#1},coltitle=ink,fonttitle=\sffamily\bfseries,
+  attach title to upper={\par\smallskip},before skip=9pt,after skip=9pt}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\old}{\mathrm{old}}
+\newcommand{\clip}{\operatorname{clip}}
+\newcommand{\KL}{\operatorname{KL}}
+\newcommand{\sg}{\operatorname{sg}}
+\newcommand{\Ahat}{\widehat A}
+\newcommand{\Vhat}{\widehat V}
+\newcommand{\Lclip}{L^{\mathrm{clip}}}
+\newcommand{\Lsur}{L^{\mathrm{sur}}}
+\newcommand{\nexttopic}{\clearpage}
+\begin{document}
+
+{\sffamily\color{accent}\small LECTURE SCRIPT\par}
+{\sffamily\bfseries\color{ink}\fontsize{27}{31}\selectfont PPO\par}
+\vspace{9pt}
+
+\section{PG Recap and REINFORCE}
+Consider an episodic Markov decision process with horizon $H$ ($H=\infty$ works 
+analogously, as seen in the RL lecture) and a differentiable
+stochastic policy $\pi_\theta(a\,; s)$. At time $t$, the agent observes $S_t$,
+chooses $A_t$, receives $R_t$, and moves to $S_{t+1}$. For a finite-horizon
+problem, the state includes time, so we can write $V^\pi(S_t)$ without a
+separate time index. Episodes that finish early can be padded by an absorbing
+state with zero reward. The objective and the reward-to-go are
+\begin{equation}\label{eq:objective}
+ J(\theta)=\E_{\pi_\theta}\!\left[\sum_{t=0}^{H}\gamma^t R_t\right],
+ \qquad G_t=\sum_{k=t}^{H-1}\gamma^{k-t}R_k,
+ \qquad 0<\gamma\leq 1.
+\end{equation}
+Policy Gradient algorithms hinge on the policy gradient theorem, which gives
+the gradient of the objective in terms of the policy's score function and the
+reward-to-go:
+\begin{equation}\label{eq:reinforce}
+ \nabla J(\theta)=\E_{\pi_\theta}\!\left[
+ \sum_{t=0}^{H-1}\gamma^t\nabla_\theta\log\pi_\theta(A_t\,; S_t)G_t\right].
+\end{equation}
+The discount factors in the front and inside the reward-to-go have different 
+roles: $G_t$ discounts relative to \emph{time $t$}, while the outer $\gamma^t$ 
+discounts relative to the \emph{start of the episode}.
+
+\subsection{The REINFORCE update}
+Collect $B$ independent episodes under the current policy and form
+\begin{equation}\label{eq:reinforce-update}
+ \widehat \nabla_\theta J(\theta)=\frac1B\sum_{i=1}^B\sum_{t=0}^{H-1}
+ \gamma^t\nabla_\theta\log\pi_\theta(a_t^i\,; s_t^i)G_t^i,
+ \qquad \theta\leftarrow\theta+\alpha\widehat \nabla_\theta J(\theta).
+\end{equation}
+This is stochastic gradient \emph{ascent}: actions followed by high returns
+receive a positive push in log probability. Under the usual regularity
+assumptions, the estimator is unbiased for~\eqref{eq:objective}.
+
+\subsection{Algorithm 1: Vanilla REINFORCE}
+{\small
+\begin{tabbing}
+\hspace{1.3em}\=\hspace{1.3em}\=\kill
+\textbf{Initialize} policy parameters $\theta$; choose batch size $B$ and step size $\alpha$.\\
+\textbf{repeat}\\
+\> Collect $B$ complete episodes using the current policy $\pi_\theta$.\\
+\> \textbf{for each} episode $i$ \textbf{do}\\
+\>\> Set $G_H^i\leftarrow0$; compute $G_t^i\leftarrow r_t^i+\gamma G_{t+1}^i$ backwards.\\
+\> Form the batch gradient $\widehat \nabla_\theta J(\theta)$ in~\eqref{eq:reinforce-update} using these returns.\\
+\> Update $\theta\leftarrow\theta+\alpha\widehat \nabla_\theta J(\theta)$; discard the batch.\\
+\textbf{until} the training budget is exhausted.
+\end{tabbing}}
+
+\begin{idea}{Two problems determine the route to PPO}
+\textbf{Variance:} $G_t$ contains randomness from many later decisions and
+transitions. Long episodes make gradient estimates very noisy.\par
+\textbf{Sample efficiency:} after an update, the rollouts are discarded. In real-life examples,
+what is expensive (real-time execution, damages from bad rollouts,...) is the cost of generating new data.
+\end{idea}
+
+\nexttopic
+\section{A2C: Advantage Actor-Critic}
+Define the state-action value function and the state value function of a policy by
+\begin{equation}
+ Q^\pi_t(s,a)=\E_\pi[G_t\mid S_t=s,A_t=a],\qquad
+ V^\pi_t(s)=\E_{a\sim\pi(\cdot\mid s)}[Q^\pi_t(s,a)].
+\end{equation}
+Starting from the policy gradient theorem, we obtain
+\begin{align*}
+ \nabla J(\theta)
+ &=\sum_{t=0}^{H-1}\gamma^t\E_{\pi_\theta}\!\left[
+ \nabla_\theta\log\pi_\theta(A_t\mid S_t)G_t\right]
+ =\sum_{t=0}^{H-1}\gamma^t\E_{\pi_\theta}\!\left[
+ \nabla_\theta\log\pi_\theta(A_t\mid S_t)Q^{\pi_\theta}_t(S_t,A_t)\right]\\
+ &=\sum_{t=0}^{H-1}\gamma^t\E_{\pi_\theta}\!\left[
+ \nabla_\theta\log\pi_\theta(A_t\mid S_t)
+ \bigl(Q^{\pi_\theta}_t(S_t,A_t)-b(S_t)\bigr)\right]\\
+ &=
+ \sum_{t=0}^{H-1}\gamma^t\E_{\pi_\theta}\!\Bigl[
+ \nabla_\theta\log\pi_\theta(A_t\mid S_t)
+ \underbrace{\bigl(Q^{\pi_\theta}_t(S_t,A_t)-V^{\pi_\theta}_t(S_t)\bigr)}_
+ {\displaystyle :=A^{\pi_\theta}_t(S_t,A_t)}\Bigr].
+\end{align*}
+Here, we used the tower property in the first equation, the baseline trick from the
+RL lecture in the second, and the value function as baseline in the third.
+Conditioning removes future-return sampling noise from each gradient term.
+Subtracting the value baseline then measures an action relative to the policy's
+usual return in the same state, removing variation due to how favorable that
+state is. This typically reduces gradient variance without changing its mean;
+the value baseline is not necessarily the variance-minimizing baseline. The
+differences $A^{\pi_\theta}_t(S_t,A_t)$ are called \emph{advantages}.
+
+\subsection{Actor-critic Recap and A2C}
+Actor-critic methods alternate two tasks: \emph{policy evaluation} estimates
+how good the current policy is (the critic), and \emph{policy improvement}
+changes the policy using that evaluation (the actor). In the RL lecture, we had 
+model-based policy iteration as an example. We alternate between evaluating the 
+current policy by solving its Bellman equations (critic; policy evaluation), then 
+make the policy greedy with respect to that value (actor; policy improvement):
+\begin{equation}
+ \begin{gathered}
+ V^\pi(s)=\sum_a\pi(a\mid s)\sum_{s'}P(s'\mid s,a)
+ \bigl[r(s,a,s')+\gamma V^\pi(s')\bigr],\\[3pt]
+ \pi_{\mathrm{new}}(s)\in\arg\max_a\sum_{s'}P(s'\mid s,a)
+ \bigl[r(s,a,s')+\gamma V^\pi(s')\bigr].
+ \end{gathered}
+\end{equation}
+In sample-based actor-critic methods, a learned critic replaces exact evaluation
+and a general policy gradient step (e.g. through policy gradients) replaces the greedy update.
+A2C learns $V^\pi$ by TD learning to evaluate the current policy: this is the
+\emph{critic}. The policy $\pi_\theta$ takes stochastic gradient ascent steps
+weighted by estimated advantages: this is the \emph{actor}. Now we only need a method to 
+estimate the advantages from the critic's $V^\pi$.
+
+\subsection{Generalized advantage estimation (GAE)}
+\begingroup
+\setlength{\abovedisplayskip}{5pt}
+\setlength{\belowdisplayskip}{5pt}
+\setlength{\abovedisplayshortskip}{3pt}
+\setlength{\belowdisplayshortskip}{3pt}
+For fixed critic predictions $\Vhat_t$, the one-step and $k$-step TD errors are
+\begin{equation}\label{eq:td}
+ \delta_t=R_t+\gamma\Vhat_{t+1}-\Vhat_t,
+ \qquad
+ \Ahat_t^{(k)}=\sum_{\ell=0}^{k-1}\gamma^\ell R_{t+\ell}
+ +\gamma^k\Vhat_{t+k}-\Vhat_t\overset{\text{Telescope}}{=}\sum_{l=0}^{k-1}\gamma^l\delta_{t+l}.
+\end{equation}
+Short horizons typically reduce variance but rely on a potentially biased
+bootstrap; longer horizons use more noisy rewards. GAE balances these effects
+with $\lambda\in[0,1]$. For $m$ remaining transitions, define
+\begin{equation}\label{eq:gae}
+ \Ahat_t^{\mathrm{GAE}}=(1-\lambda)\sum_{k=1}^{m-1}\lambda^{k-1}\Ahat_t^{(k)}
+ +\lambda^{m-1}\Ahat_t^{(m)}
+ =\sum_{l=0}^{m-1}(\gamma\lambda)^l\delta_{t+l}.
+\end{equation}
+\endgroup
+
+\nexttopic
+\section{Sample reuse}
+To tackle the problem of sample efficiency, we can reuse previously generated samples. 
+Let $\pi_\old=\pi_{\theta_\old}$ generate a batch of trajectories. To take several policy updates
+with these data, importance sampling (IS) changes the sampling distribution
+from $\pi_\theta$ to $\pi_\old$. Assuming sufficient support, the gradient is
+\begin{equation}\label{eq:exactis}
+ \nabla J(\theta)=\sum_{t=0}^{H-1}\gamma^t\E_{\pi_\old}\!\left[
+ \left(\prod_{j=0}^{t}\frac{\pi_\theta(A_j\mid S_j)}{\pi_\old(A_j\mid S_j)}\right)
+ \nabla_\theta\log\pi_\theta(A_t\mid S_t)A_t^{\pi_\theta}(S_t,A_t)\right].
+\end{equation}
+The environment probabilities cancel. Earlier action factors correct the
+state distribution; the last factor corrects the action distribution at $S_t$.
+Here IS permits sample reuse, rather than itself reducing variance.
+
+\begin{idea}{Three problems with exact sample reuse}
+\textbf{Products and fractions:} Fractions of probabilities, especially if 
+combined with long products can become very large, giving a
+high-variance gradient estimate.\par
+\textbf{Advantage estimation:} the formula
+requires advantages for the current $\pi_\theta$, which can only be estimated with
+samples from the current policy.\par
+\textbf{Correlated rollouts:} neighboring transitions share history; using
+whole rollouts as optimization units gives strongly correlated contributions.
+\end{idea}
+
+\subsection{How to solve the problems: local weighting, old advantages, random transitions}
+Keep only the last factor of the product and introduce a trust region
+$C_t(\theta_\old)$: the action probability has changed too far in the favorable
+direction while we still work with stale data. The gate $c_t(\theta)=\mathbf{1}_{\{\theta\notin C_t(\theta_\old)\}}$
+suppresses those contributions, limiting how long we trust the stale data. Replace the current advantage by the old one, then sample
+individual transitions uniformly. Write
+$r_t(\theta)=\tfrac{\pi_\theta(A_t\,; S_t)}{\pi_\old(A_t\,; S_t)}$ and abbreviate
+$A_t^\old=A_t^{\pi_\old}(S_t,A_t)$. For $U\sim\mathrm{Unif}\{0,\ldots,H-1\}$,
+\begin{align*}
+ \nabla J(\theta)
+ &\approx\sum_{t=0}^{H-1}\gamma^t\E_{\pi_\old}\!\left[
+ \frac{\pi_\theta(A_t\mid S_t)}{\pi_\old(A_t\mid S_t)}c_t(\theta)
+ \nabla_\theta\log\pi_\theta(A_t\mid S_t)A_t^\old\right]\\
+ &=\sum_{t=0}^{H-1}\gamma^t\E_{\pi_\old}\!\left[
+ \frac{\nabla_\theta\pi_\theta(A_t\mid S_t)}{\pi_\old(A_t\mid S_t)}
+ c_t(\theta)A_t^\old\right]\\
+ &=H\,\E_{U,\pi_\old}\!\left[
+ \gamma^U\nabla_\theta r_U(\theta)c_U(\theta)A_U^\old\right].
+\end{align*}
+The second line uses $\pi\nabla\log\pi=\nabla\pi$; the third rewrites a sum as a
+uniform expectation. In a buffer, replace $A_t^\old$ by its fixed GAE estimate
+$\Ahat_t$ and mix transitions from all rollouts in minibatches. Shuffling mixes
+correlated observations; it does not make the original data independent.
+
+We deliberately trade \textbf{bias in the gradient} for lower variance and the
+ability to reuse expensive samples. Keeping the policy near the version that
+collected the data makes old advantages more relevant. The precise gate is the
+PPO clipping rule below. A more standard motivation comes from trust-region
+policy optimization, which we will likely encounter in a later lecture.
+
+Common PPO losses omit the outer $\gamma^t$. To retain
+it, either weight uniform buffer samples by $\gamma^t$, or draw transitions with
+probability proportional to $\gamma^t$ (up to a constant normalization), as in
+the second lecture's homework. Below, $w_t=\gamma^t$ denotes the first option;
+$w_t=1$ denotes the usual uniform PPO convention. Here $t$ is episode time.
+
+\nexttopic
+\section{PPO: Proximal Policy Optimization}
+\subsection{The choice of trust region}
+Initially $r_t(\theta)=r_t(\theta_\old)=1$. The sign of the stored advantage determines
+which change is favorable.
+\begin{itemize}
+ \item If $\Ahat_t>0$, increase the probability of $A_t$. Once
+ $r_t>1+\epsilon$, stop rewarding further increases. If the probability instead
+ decreases, keep the gradient that pushes it back up.
+ \item If $\Ahat_t<0$, decrease the probability of $A_t$. Once
+ $r_t<1-\epsilon$, stop rewarding further decreases. If the probability instead
+ increases, keep the gradient that pushes it back down.
+\end{itemize}
+The asymmetric clipping is so that information from opposite advantages is not lost.
+
+\subsection{The PPO loss}
+The derivation gives an improvement direction in the form of a gradient. The neural 
+networks used for deep reinforcement learning cannot generally
+realize arbitrary changes to individual action probabilities, or be optimized
+in one exact step. Instead, we specify a differentiable loss and let a numerical
+optimizer take parameter steps on minibatches. Its computed gradients are
+those of the sampled loss, rather than the exact expected return. We will
+study network training and these optimizers (especially for the critic using TD-Learning) more closely in later lectures.
+We obtain the classical PPO loss:
+
+\begin{idea}{The PPO Loss}
+\begin{equation}\label{eq:clip}
+ \Lclip(\theta)=\widehat\E_{U,\pi_\old}\!\left[w_U
+ \min\!\left\{r_U(\theta)\Ahat_U,\;
+ \clip\bigl(r_U(\theta),1-\epsilon,1+\epsilon\bigr)\Ahat_U\right\}\right].
+\end{equation}
+\end{idea}
+
+\subsection{Algorithm 2: PPO}
+{\small
+\begin{tabbing}
+\hspace{1.3em}\=\hspace{1.3em}\=\kill
+\textbf{Initialize} policy parameters $\theta$ (actor), value function $V$ (critic);\\
+\> \textbf{choose} batch size $B$, number of epochs $E$, and step size $\alpha$.\\
+\textbf{repeat}\\
+\> Collect $B$ complete episodes using the fixed policy $\pi_\theta$ and compute advantages backwards.\\
+\> Draw $E$ minibatches of size $M$ from the buffer.\\
+\> Alternately update actor $\theta\leftarrow\theta+\alpha\widehat\nabla_\theta J(\theta)$ and critic $V$ (TD learning) on each minibatch.\\
+\textbf{until} the training budget is exhausted.
+\end{tabbing}}
+
+\subsection{A few differences in practice}
+\begin{itemize}[itemsep=3pt]
+ \item \textbf{Shared networks:} actor and critic may share parameters. Then
+ use a combined actor and value-prediction loss and a joint optimizer step, rather than
+ two separate updates as in the tabular standard algorithm.
+ \item \textbf{Finite and infinite horizons:} a rollout is necessarily a finite segment. Bootstrap at nonterminal cutoffs from the final
+ observation before any reset; use zero value at true termination.
+ \item \textbf{Adam versus SGD:} implementations often use Adam (or other more sophisticated optimizers) in place of
+ SGD steps; it adapts steps using gradient history.
+ \item \textbf{Unequal rollout lengths:} episodes or collected segments may
+ have different lengths. The buffer then contains $\sum_iT_i$ transitions;
+ sample transitions, and compute GAE separately within each segment.
+\item \textbf{Gamma} $\gamma$ is often treated as a hyperparameter in practice, allowing for tuning based on the specific task and environment. It is also common, as noted, to not use $\gamma$ in the outer weighting of the PPO loss.
+\end{itemize}
+
+\end{document}
