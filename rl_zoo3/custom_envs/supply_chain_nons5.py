@@ -302,21 +302,21 @@ class SupplyChainNonS5Env(gym.Env):
                     dtype=np.float32,
                 ),
 
-                # "days_from_release": spaces.Box(
-                #     low=-1.0,
-                #     high=1.0,
-                #     shape=(1,),
-                #     dtype=np.float32,
-                # ),
-
                 "days_from_release": spaces.Box(
-                    low=float(-self.demand_warmup_periods),
-                    high=float(
-                        self.episode_length - self.demand_warmup_periods
-                    ),
+                    low=-1.0,
+                    high=1.0,
                     shape=(1,),
                     dtype=np.float32,
                 ),
+
+                # "days_from_release": spaces.Box(
+                #     low=float(-self.demand_warmup_periods),
+                #     high=float(
+                #         self.episode_length - self.demand_warmup_periods
+                #     ),
+                #     shape=(1,),
+                #     dtype=np.float32,
+                # ),
 
                 "lifecycle_progress": spaces.Box(
                     low=0.0,
@@ -526,14 +526,14 @@ class SupplyChainNonS5Env(gym.Env):
                 dtype=np.float32,
             ),
 
-            # "days_from_release": np.array(
-            #     [days_from_release_normalized],
-            #     dtype=np.float32,
-            # ),
             "days_from_release": np.array(
-                [self._get_days_from_release()],
+                [days_from_release_normalized],
                 dtype=np.float32,
             ),
+            # "days_from_release": np.array(
+            #     [self._get_days_from_release()],
+            #     dtype=np.float32,
+            # ),
 
             "lifecycle_progress": np.array(
                 [self._get_lifecycle_progress()],
