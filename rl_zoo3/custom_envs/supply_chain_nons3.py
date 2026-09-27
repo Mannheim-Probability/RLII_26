@@ -7,7 +7,7 @@ from gymnasium import spaces
 import numpy as np
 
 
-class SupplyChainEnv(gym.Env):
+class SupplyChainNonS3Env(gym.Env):
     """
     Single-product warehouse / replenishment environment with stochastic lead times.
 
@@ -19,12 +19,28 @@ class SupplyChainEnv(gym.Env):
             Current warehouse inventory.
         demand:
             Demand of the current period.
+        lifecycle_progress:
+            Current normalized product lifecycle position in [0, 1].
+        days_from_release:
+            Signed number of days relative to product release. Negative values
+            mean the release is still in the future, 0 is the release day, and
+            positive values mean days since release.
         in_transit:
             Total quantity currently on the way.
         order_history:
             Quantities ordered in previous periods.
             order_history[0] = order placed 1 period ago,
             order_history[1] = order placed 2 periods ago, ...
+
+        shipment_quantities:
+            Quantities of shipments that are currently still in transit.
+            Fixed-length vector padded with zeros.
+
+        shipment_ages:
+            Number of periods each open shipment has already been in transit.
+            Aligned with shipment_quantities. The exact remaining lead time
+            remains hidden from the agent.
+
         mean_lead_time:
             Mean lead time of the known lead-time distribution.
 
@@ -32,8 +48,17 @@ class SupplyChainEnv(gym.Env):
         Integer order quantity in {0, ..., max_order}.
 
     Demand:
-        Lost-sales setting. Unfulfilled demand disappears after the current period
-        and is NOT carried over as backlog.
+        Non-stationary lost-sales demand.
+
+        Daily demand follows a Poisson distribution with a time-varying mean:
+
+            D_t ~ Poisson(lambda_t)
+
+        lambda_t follows a one-time product lifecycle with introduction,
+        growth, maturity and decline phases. After the decline, demand remains
+        permanently at the lower market-saturation level and does not restart.
+        Unfulfilled demand disappears after the current period and is NOT carried
+        over as backlog.
 
     Timing of one step / one period:
         1. Current demand is fulfilled from current inventory.
@@ -65,9 +90,24 @@ class SupplyChainEnv(gym.Env):
     
     def __init__(
         self,
-        capacity: int = 100,
+        capacity: int = 1000,
         max_order: Optional[int] = None,
-        demand_lambda: float = 10.0,
+
+        # Peak mean demand during the maturity phase.
+        demand_lambda: float = 100.0,
+
+        # Non-stationary product-life-cycle demand.
+        demand_lifecycle_length: int = 730,
+        repeat_product_lifecycle = False,
+        demand_warmup_periods: Optional[int] = None,
+        demand_intro_fraction: float = 0.10,
+        demand_growth_fraction: float = 0.30,
+        demand_maturity_fraction: float = 0.35,
+        demand_decline_fraction: float = 0.25,
+        demand_start_ratio: float = 0.00,
+        demand_intro_end_ratio: float = 0.40,
+        demand_end_ratio: float = 0.15,
+
         lead_time_mean: float = 60.0,
         lead_time_std: float = 2,
         max_lead_time: int = 100,
@@ -76,7 +116,7 @@ class SupplyChainEnv(gym.Env):
         holding_cost: float = 0.25,
         overflow_cost: float = 8.0,
         lost_sales_cost: float = 10,
-        episode_length: int = 730,
+        episode_length: int = 1100,
         initial_inventory: Optional[int] = None,
         order_history_length: Optional[int] = None,
         render_mode: Optional[str] = None,
@@ -92,6 +132,37 @@ class SupplyChainEnv(gym.Env):
             raise ValueError("episode_length must be > 0")
         if demand_lambda < 0:
             raise ValueError("demand_lambda must be >= 0")
+        if demand_lifecycle_length <= 1:
+            raise ValueError("demand_lifecycle_length must be > 1")
+
+        lifecycle_fractions = (
+            float(demand_intro_fraction),
+            float(demand_growth_fraction),
+            float(demand_maturity_fraction),
+            float(demand_decline_fraction),
+        )
+        if any(value < 0.0 for value in lifecycle_fractions):
+            raise ValueError("demand lifecycle fractions must be >= 0")
+        if not np.isclose(sum(lifecycle_fractions), 1.0):
+            raise ValueError(
+                "demand_intro_fraction + demand_growth_fraction + "
+                "demand_maturity_fraction + demand_decline_fraction "
+                "must sum to 1.0"
+            )
+
+        for name, value in (
+            ("demand_start_ratio", demand_start_ratio),
+            ("demand_intro_end_ratio", demand_intro_end_ratio),
+            ("demand_end_ratio", demand_end_ratio),
+        ):
+            if value < 0.0:
+                raise ValueError(f"{name} must be >= 0")
+
+        if demand_intro_end_ratio < demand_start_ratio:
+            raise ValueError(
+                "demand_intro_end_ratio must be >= demand_start_ratio"
+            )
+
         if lead_time_std < 0:
             raise ValueError("lead_time_std must be >= 0")
         if lead_time_mean <= 0:
@@ -102,7 +173,28 @@ class SupplyChainEnv(gym.Env):
         if self.max_order < 0:
             raise ValueError("max_order must be >= 0")
 
+        # demand_lambda is interpreted as peak mean demand.
         self.demand_lambda = float(demand_lambda)
+
+        self.demand_lifecycle_length = int(demand_lifecycle_length)
+        self.repeat_product_lifecycle = repeat_product_lifecycle
+
+        self.demand_warmup_periods = int(
+            demand_warmup_periods
+            if demand_warmup_periods is not None
+            else max_lead_time
+        )
+        if self.demand_warmup_periods < 0:
+            raise ValueError("demand_warmup_periods must be >= 0")
+
+        self.demand_intro_fraction = float(demand_intro_fraction)
+        self.demand_growth_fraction = float(demand_growth_fraction)
+        self.demand_maturity_fraction = float(demand_maturity_fraction)
+        self.demand_decline_fraction = float(demand_decline_fraction)
+
+        self.demand_start_ratio = float(demand_start_ratio)
+        self.demand_intro_end_ratio = float(demand_intro_end_ratio)
+        self.demand_end_ratio = float(demand_end_ratio)
 
         self.lead_time_mean = float(lead_time_mean)
         self.lead_time_std = float(lead_time_std)
@@ -136,6 +228,11 @@ class SupplyChainEnv(gym.Env):
 
         self.action_space = spaces.Discrete(self.max_order + 1)
 
+        # At most one positive order is placed per period, and every lead time
+        # is capped at max_lead_time. Therefore max_lead_time slots are enough
+        # to represent all simultaneously open shipments.
+        self.max_visible_shipments = self.max_lead_time
+
         max_in_transit = float(self.max_order * self.max_lead_time)
 
         if render_mode not in {
@@ -168,6 +265,14 @@ class SupplyChainEnv(gym.Env):
                     shape=(1,),
                     dtype=np.float32,
                 ),
+                "days_from_release": spaces.Box(
+                    low=float(-self.demand_warmup_periods),
+                    high=float(
+                        self.episode_length - self.demand_warmup_periods
+                    ),
+                    shape=(1,),
+                    dtype=np.float32,
+                ),
                 "in_transit": spaces.Box(
                     low=0.0,
                     high=max_in_transit,
@@ -180,9 +285,32 @@ class SupplyChainEnv(gym.Env):
                     shape=(self.order_history_length,),
                     dtype=np.float32,
                 ),
-                "mean_lead_time": spaces.Box(
-                    low=1.0,
-                    high=float(self.max_lead_time),
+                # "shipment_features": spaces.Box(
+                #     low=np.zeros(
+                #         (
+                #             self.max_visible_shipments,
+                #             2,
+                #         ),
+                #         dtype=np.float32,
+                #     ),
+                #     high=np.tile(
+                #         np.array(
+                #             [
+                #                 self.max_order,
+                #                 self.max_lead_time,
+                #             ],
+                #             dtype=np.float32,
+                #         ),
+                #         (
+                #             self.max_visible_shipments,
+                #             1,
+                #         ),
+                #     ),
+                #     dtype=np.float32,
+                # ),
+                "exp_demand": spaces.Box(
+                    low=0.0,
+                    high=self.demand_lambda,
                     shape=(1,),
                     dtype=np.float32,
                 ),
@@ -205,7 +333,56 @@ class SupplyChainEnv(gym.Env):
             sum(shipment["qty"] for shipment in self._shipments)
         )
 
+    def _get_open_shipment_features(
+        self,
+    ) -> np.ndarray:
+
+        features = np.zeros(
+            (
+                self.max_visible_shipments,
+                2,
+            ),
+            dtype=np.float32,
+        )
+
+        open_shipments = sorted(
+            self._shipments,
+            key=lambda shipment: shipment["placed_step"],
+            reverse=True,
+        )
+
+        for i, shipment in enumerate(
+            open_shipments[
+                : self.max_visible_shipments
+            ]
+        ):
+
+            quantity = float(
+                shipment["qty"]
+            )
+
+            age = (
+                self.step_count
+                - int(
+                    shipment["placed_step"]
+                )
+            )
+
+            age = float(
+                np.clip(
+                    age,
+                    0,
+                    self.max_lead_time,
+                )
+            )
+
+            features[i, 0] = quantity
+            features[i, 1] = age
+
+        return features
+
     def _get_obs(self) -> dict[str, np.ndarray]:
+
         return {
             "inventory": np.array(
                 [self.inventory],
@@ -215,25 +392,156 @@ class SupplyChainEnv(gym.Env):
                 [self.demand],
                 dtype=np.float32,
             ),
+            "days_from_release": np.array(
+                [self._get_days_from_release()],
+                dtype=np.float32,
+            ),
             "in_transit": np.array(
                 [self._get_in_transit()],
                 dtype=np.float32,
             ),
             "order_history": self.order_history.copy(),
-            "mean_lead_time": np.array(
-                [self.lead_time_mean],
-                dtype=np.float32,
-            ),
+            "exp_demand": self._get_current_demand_lambda(),
         }
 
+    @staticmethod
+    def _smoothstep(value: float) -> float:
+        x = float(np.clip(value, 0.0, 1.0))
+        return x * x * (3.0 - 2.0 * x)
+
+    def _get_days_from_release(self) -> int:
+        """
+        Signed time relative to product release.
+
+        Examples for demand_warmup_periods=100:
+            step_count =   0 -> -100
+            step_count =  99 ->   -1
+            step_count = 100 ->    0
+            step_count = 101 ->    1
+        """
+        return int(self.step_count) - self.demand_warmup_periods
+
+    def _get_product_age(self) -> int:
+        return max(
+            0,
+            self._get_days_from_release(),
+        )
+
+    def _get_lifecycle_progress(self) -> float:
+        if self.step_count < self.demand_warmup_periods:
+            return 0.0
+
+        age = self._get_product_age()
+        length = self.demand_lifecycle_length
+
+        if self.repeat_product_lifecycle:
+            cycle_age = age % length
+            return float(
+                cycle_age / max(1, length - 1)
+            )
+
+        return float(
+            np.clip(
+                age / max(1, length - 1),
+                0.0,
+                1.0,
+            )
+        )
+
+    def _get_lifecycle_phase(self) -> str:
+        if self.step_count < self.demand_warmup_periods:
+            return "warmup"
+
+        age = self._get_product_age()
+        progress = self._get_lifecycle_progress()
+
+        intro_end = self.demand_intro_fraction
+        growth_end = intro_end + self.demand_growth_fraction
+        maturity_end = growth_end + self.demand_maturity_fraction
+
+        if progress < intro_end:
+            return "introduction"
+        if progress < growth_end:
+            return "growth"
+        if progress < maturity_end:
+            return "maturity"
+
+        if age >= self.demand_lifecycle_length:
+            return "saturation"
+
+        return "decline"
+
+    def _get_current_demand_lambda(self) -> float:
+        if self.step_count < self.demand_warmup_periods:
+            return 0.0
+
+        peak = self.demand_lambda
+        start = peak * self.demand_start_ratio
+        intro_target = peak * self.demand_intro_end_ratio
+        end = peak * self.demand_end_ratio
+
+        progress = self._get_lifecycle_progress()
+
+        intro_end = self.demand_intro_fraction
+        growth_end = intro_end + self.demand_growth_fraction
+        maturity_end = growth_end + self.demand_maturity_fraction
+
+        if progress < intro_end:
+            local = (
+                progress / intro_end
+                if intro_end > 0.0
+                else 1.0
+            )
+            weight = self._smoothstep(local)
+            return float(
+                start
+                + weight * (intro_target - start)
+            )
+
+        if progress < growth_end:
+            width = self.demand_growth_fraction
+            local = (
+                (progress - intro_end) / width
+                if width > 0.0
+                else 1.0
+            )
+            weight = self._smoothstep(local)
+            return float(
+                intro_target
+                + weight * (peak - intro_target)
+            )
+
+        if progress < maturity_end:
+            return float(peak)
+
+        width = self.demand_decline_fraction
+        local = (
+            (progress - maturity_end) / width
+            if width > 0.0
+            else 1.0
+        )
+        weight = self._smoothstep(local)
+
+        return float(
+            peak + weight * (end - peak)
+        )
+
     def _sample_demand(self) -> int:
-        if self.step_count < self.max_lead_time:
-            demand = 0
-        else:
-            demand = self.np_random.poisson(self.demand_lambda)
-        return int(demand)
+        demand_mean = self._get_current_demand_lambda()
+
+        if demand_mean <= 0.0:
+            return 0
+
+        return int(
+            self.np_random.poisson(
+                demand_mean
+            )
+        )
 
     def _sample_lead_time(self) -> int:
+        """
+        Sample a hidden integer lead time in [1, max_lead_time].
+        """
         if self.lead_time_std == 0:
             lead_time = int(round(self.lead_time_mean))
         else:
@@ -274,6 +582,9 @@ class SupplyChainEnv(gym.Env):
         self,
         order_qty: int,
     ) -> Optional[int]:
+        """
+        Place the action/order at the end of the current period.
+        """
         if order_qty <= 0:
             return None
 
@@ -285,6 +596,7 @@ class SupplyChainEnv(gym.Env):
                 "qty": int(order_qty),
                 "remaining": sampled_lead_time,
                 "initial_lead_time": sampled_lead_time,
+                "placed_step": int(self.step_count),
             }
         )
 
@@ -325,6 +637,12 @@ class SupplyChainEnv(gym.Env):
             )
 
         self.inventory = inventory
+
+        self.step_count = 0
+        self._shipments = []
+        self._next_shipment_id = 0
+        self.last_info = {}
+
         self.demand = int(
             options.get(
                 "initial_demand",
@@ -336,23 +654,25 @@ class SupplyChainEnv(gym.Env):
                 "initial_demand must be >= 0"
             )
 
-        self.step_count = 0
-        self._shipments = []
-        self._next_shipment_id = 0
-        self.last_info = {}
-
         self.order_history = np.zeros(
             self.order_history_length,
             dtype=np.float32,
         )
 
+        obs = self._get_obs()
+
         info = {
             "inventory": self.inventory,
             "demand": self.demand,
+            "demand_lambda_current": self._get_current_demand_lambda(),
+            "lifecycle_progress": self._get_lifecycle_progress(),
+            "days_from_release": self._get_days_from_release(),
+            "lifecycle_phase": self._get_lifecycle_phase(),
             "in_transit": 0,
+            "shipment_features": obs["shipment_features"].copy(),
         }
 
-        return self._get_obs(), info
+        return obs, info
 
     def step(self, action):
         if not self.action_space.contains(action):
@@ -410,6 +730,7 @@ class SupplyChainEnv(gym.Env):
             order_qty * self.purchase_cost
         )
 
+        # Reward includes the cost of the order placed at period end.
         reward = (
             revenue
             - ordering_cost
@@ -417,10 +738,10 @@ class SupplyChainEnv(gym.Env):
             - excess_order_cost
             - lost_sales_penalty
         )
-        reward = reward/200
+        reward = reward/2000
         self.last_reward = float(reward)
         # print("Inventory:", self.inventory)
-        # #print("reward:", reward)
+        # print("reward:", reward)
         # print("total:",revenue,
         #     "-", ordering_cost,
         #     "-", inventory_holding_cost,
@@ -429,9 +750,9 @@ class SupplyChainEnv(gym.Env):
 
 
         self._update_order_history(order_qty)
-        self.demand = self._sample_demand()
 
         self.step_count += 1
+        self.demand = self._sample_demand()
 
         terminated = False
         truncated = (
@@ -446,6 +767,12 @@ class SupplyChainEnv(gym.Env):
             "reward": float(reward),
 
             "current_demand": current_demand,
+            "next_demand": self.demand,
+            "demand_lambda_next": self._get_current_demand_lambda(),
+            "lifecycle_progress": self._get_lifecycle_progress(),
+            "days_from_release": self._get_days_from_release(),
+            "lifecycle_phase": self._get_lifecycle_phase(),
+
             "sold": sold,
             "lost_sales": lost_sales,
 
@@ -454,7 +781,6 @@ class SupplyChainEnv(gym.Env):
             "overflow": overflow,
 
             "inventory_end": self.inventory,
-            "next_demand": self.demand,
             "in_transit_after_order": self._get_in_transit(),
 
             "revenue": float(revenue),
@@ -485,15 +811,15 @@ class SupplyChainEnv(gym.Env):
         if self.renderer is None:
 
             try:
-                from .supply_chain_renderer import (
-                    SupplyChainRenderer
+                from .supply_chain_renderer_nons import (
+                    SupplyChainRendererNonS
                 )
             except ImportError:
-                from supply_chain_renderer import (
-                    SupplyChainRenderer
+                from RLII_26.rl_zoo3.custom_envs.supply_chain_renderer_nons import (
+                    SupplyChainRendererNonS
                 )
 
-            self.renderer = SupplyChainRenderer(
+            self.renderer = SupplyChainRendererNonS(
                 render_mode=self.render_mode,
                 fps=self.metadata["render_fps"],
             )
@@ -508,3 +834,4 @@ class SupplyChainEnv(gym.Env):
         if self.renderer is not None:
             self.renderer.close()
             self.renderer = None
+

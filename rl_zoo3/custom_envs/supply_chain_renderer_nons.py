@@ -7,8 +7,6 @@ from typing import Any, Optional
 import numpy as np
 import pygame
 
-# Pygame's normal display module owns one window. For the separate reward
-# interface we use pygame's SDL2 window API when available.
 try:
     from pygame._sdl2.video import (
         Window as SDL2Window,
@@ -23,7 +21,7 @@ except (ImportError, ModuleNotFoundError):
     SDL2_MULTIWINDOW_AVAILABLE = False
 
 
-class SupplyChainRendererNS:
+class SupplyChainRendererNonS:
     """
     Pygame renderer for SupplyChainEnv.
 

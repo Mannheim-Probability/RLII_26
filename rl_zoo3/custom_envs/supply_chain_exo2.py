@@ -7,7 +7,7 @@ from gymnasium import spaces
 import numpy as np
 
 
-class SupplyChainEnv(gym.Env):
+class SupplyChainExO2Env(gym.Env):
     """
     Single-product warehouse / replenishment environment with stochastic lead times.
 
@@ -25,6 +25,16 @@ class SupplyChainEnv(gym.Env):
             Quantities ordered in previous periods.
             order_history[0] = order placed 1 period ago,
             order_history[1] = order placed 2 periods ago, ...
+
+        shipment_quantities:
+            Quantities of shipments that are currently still in transit.
+            Fixed-length vector padded with zeros.
+
+        shipment_ages:
+            Number of periods each open shipment has already been in transit.
+            Aligned with shipment_quantities. The exact remaining lead time
+            remains hidden from the agent.
+
         mean_lead_time:
             Mean lead time of the known lead-time distribution.
 
@@ -136,6 +146,8 @@ class SupplyChainEnv(gym.Env):
 
         self.action_space = spaces.Discrete(self.max_order + 1)
 
+        self.max_visible_shipments = self.max_lead_time
+
         max_in_transit = float(self.max_order * self.max_lead_time)
 
         if render_mode not in {
@@ -174,16 +186,10 @@ class SupplyChainEnv(gym.Env):
                     shape=(1,),
                     dtype=np.float32,
                 ),
-                "order_history": spaces.Box(
+                "outstanding_orders": spaces.Box(
                     low=0.0,
-                    high=float(self.max_order),
-                    shape=(self.order_history_length,),
-                    dtype=np.float32,
-                ),
-                "mean_lead_time": spaces.Box(
-                    low=1.0,
-                    high=float(self.max_lead_time),
-                    shape=(1,),
+                    high=max_in_transit,
+                    shape=(self.max_lead_time,),
                     dtype=np.float32,
                 ),
             }
@@ -205,7 +211,44 @@ class SupplyChainEnv(gym.Env):
             sum(shipment["qty"] for shipment in self._shipments)
         )
 
+
+    def _get_outstanding_orders_observation(self) -> np.ndarray:
+        """
+        Returns outstanding shipment quantities grouped by shipment age.
+
+        Index i contains the total quantity of shipments that have already
+        spent i complete periods in transit.
+
+        Example:
+            [80, 0, 40, 30, 0]
+
+        means:
+            age 0: 80 units just ordered / not yet advanced
+            age 1:  0 units
+            age 2: 40 units
+            age 3: 30 units
+            age 4:  0 units
+
+        """
+
+        outstanding = np.zeros(
+            self.max_lead_time,
+            dtype=np.float32,
+        )
+
+        for shipment in self._shipments:
+            quantity = shipment["qty"]
+            placed_step = shipment["placed_step"]
+
+            age = self.step_count - placed_step - 1
+
+            if 0 <= age < self.max_lead_time:
+                outstanding[age] += quantity
+
+        return outstanding
+
     def _get_obs(self) -> dict[str, np.ndarray]:
+
         return {
             "inventory": np.array(
                 [self.inventory],
@@ -219,11 +262,7 @@ class SupplyChainEnv(gym.Env):
                 [self._get_in_transit()],
                 dtype=np.float32,
             ),
-            "order_history": self.order_history.copy(),
-            "mean_lead_time": np.array(
-                [self.lead_time_mean],
-                dtype=np.float32,
-            ),
+            "outstanding_orders": self._get_outstanding_orders_observation(),
         }
 
     def _sample_demand(self) -> int:
@@ -285,6 +324,7 @@ class SupplyChainEnv(gym.Env):
                 "qty": int(order_qty),
                 "remaining": sampled_lead_time,
                 "initial_lead_time": sampled_lead_time,
+                "placed_step": int(self.step_count),
             }
         )
 
@@ -313,29 +353,6 @@ class SupplyChainEnv(gym.Env):
 
         options = options or {}
 
-        inventory = int(
-            options.get(
-                "initial_inventory",
-                self.initial_inventory,
-            )
-        )
-        if not 0 <= inventory <= self.capacity:
-            raise ValueError(
-                "initial_inventory must be between 0 and capacity"
-            )
-
-        self.inventory = inventory
-        self.demand = int(
-            options.get(
-                "initial_demand",
-                self._sample_demand(),
-            )
-        )
-        if self.demand < 0:
-            raise ValueError(
-                "initial_demand must be >= 0"
-            )
-
         self.step_count = 0
         self._shipments = []
         self._next_shipment_id = 0
@@ -346,13 +363,42 @@ class SupplyChainEnv(gym.Env):
             dtype=np.float32,
         )
 
+        inventory = int(
+            options.get(
+                "initial_inventory",
+                self.initial_inventory,
+            )
+        )
+
+        if not 0 <= inventory <= self.capacity:
+            raise ValueError(
+                "initial_inventory must be between 0 and capacity"
+            )
+
+        self.inventory = inventory
+
+        self.demand = int(
+            options.get(
+                "initial_demand",
+                self._sample_demand(),
+            )
+        )
+
+        if self.demand < 0:
+            raise ValueError(
+                "initial_demand must be >= 0"
+            )
+
+        obs = self._get_obs()
+
         info = {
             "inventory": self.inventory,
             "demand": self.demand,
-            "in_transit": 0,
+            "in_transit": self._get_in_transit(),
+            "outstanding_orders": obs["outstanding_orders"].copy(),
         }
 
-        return self._get_obs(), info
+        return obs, info
 
     def step(self, action):
         if not self.action_space.contains(action):
@@ -410,6 +456,7 @@ class SupplyChainEnv(gym.Env):
             order_qty * self.purchase_cost
         )
 
+        # Reward includes the cost of the order placed at period end.
         reward = (
             revenue
             - ordering_cost

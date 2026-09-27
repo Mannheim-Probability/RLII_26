@@ -6,14 +6,73 @@ default:
 SupplyChain-v0:
   n_timesteps: !!float 1e7
   policy: 'MultiInputPolicy'
+  n_steps: 512
+  batch_size: 128
 
-SupplyChainNS-v0:
+SupplyChainNonS-v0:
   n_timesteps: !!float 1e7
   policy: 'MultiInputPolicy'
+  n_steps: 512
+  batch_size: 128
+
+SupplyChainNonS-v1:
+  n_timesteps: !!float 1e7
+  policy: 'MultiInputPolicy'
+  gae_lambda: 0.999
+  gamma: 1
+  n_steps: 512
+  batch_size: 128
+
+SupplyChainNonS-v2:
+  n_timesteps: !!float 1e7
+  policy: 'MultiInputPolicy'
+  n_steps: 512
+  batch_size: 128
+
+SupplyChainNonS-v3:
+  n_timesteps: !!float 1e7
+  policy: 'MultiInputPolicy'
+  n_steps: 512
+  batch_size: 128
+  gae_lambda: 0.999
+  gamma: 1
+
+SupplyChainNonS-v4:
+  n_timesteps: !!float 1e7
+  policy: 'MultiInputPolicy'
+  n_steps: 512
+  batch_size: 128
+  # gae_lambda: 1
+  # gamma: 1
+
+SupplyChainNonS-v5:
+  n_timesteps: !!float 1e7
+  policy: 'MultiInputPolicy'
+  n_steps: 512
+  batch_size: 128
+  # gae_lambda: 1
+  # gamma: 1
+
+SupplyChainNonS-v7:
+  n_timesteps: !!float 1e7
+  policy: 'MultiInputPolicy'
+  n_steps: 512
+  batch_size: 128
+  gae_lambda: 1
+  gamma: 1
 
 SupplyChain-v1:
   n_timesteps: !!float 1e7
   policy: 'MultiInputPolicy'
+  batch_size: 128
+  n_steps: 512
+
+SupplyChain-v2:
+  n_timesteps: !!float 1e7
+  policy: 'MultiInputPolicy'
+  n_steps: 512
+  batch_size: 128
+
 
 
 atari:
