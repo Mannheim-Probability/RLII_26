@@ -173,7 +173,6 @@ class SupplyChainNonS7Env(gym.Env):
         if self.max_order < 0:
             raise ValueError("max_order must be >= 0")
 
-        # demand_lambda is interpreted as peak mean demand.
         self.demand_lambda = float(demand_lambda)
 
         self.demand_lifecycle_length = int(demand_lifecycle_length)
@@ -261,9 +260,6 @@ class SupplyChainNonS7Env(gym.Env):
         #self.action_space = spaces.Discrete(200 + 1)
 
 
-        # At most one positive order is placed per period, and every lead time
-        # is capped at max_lead_time. Therefore max_lead_time slots are enough
-        # to represent all simultaneously open shipments.
         self.max_visible_shipments = self.max_lead_time
 
         self.max_in_transit = float(
@@ -316,22 +312,12 @@ class SupplyChainNonS7Env(gym.Env):
 
         self._next_shipment_id = 0
 
-        # ---------------------------------------------------------
-        # Observation normalization
-        # ---------------------------------------------------------
-
-        # 1.0 corresponds to peak mean daily demand.
+ 
         self.demand_scale = max(
             float(self.demand_lambda),
             1.0,
         )
 
-        # 1.0 corresponds approximately to one mean-lead-time worth
-        # of peak demand being in the pipeline.
-        #
-        # +1 reflects the timing convention of this environment:
-        # an order placed at the end of t with lead time L becomes
-        # available for demand approximately at t + L + 1.
         self.pipeline_scale = max(
             self.demand_scale
             * (self.lead_time_mean + 1.0),
@@ -466,7 +452,6 @@ class SupplyChainNonS7Env(gym.Env):
                 float(age) / mean_lead_time
             )
 
-            # Number of thresholds exceeded determines bucket.
             bucket_idx = int(
                 np.searchsorted(
                     self.shipment_age_bucket_edges[1:],
@@ -475,7 +460,6 @@ class SupplyChainNonS7Env(gym.Env):
                 )
             )
 
-            # Safety
             bucket_idx = min(
                 bucket_idx,
                 self.num_shipment_age_buckets - 1,
@@ -585,29 +569,29 @@ class SupplyChainNonS7Env(gym.Env):
             dtype=np.float32,
         )
 
-        count_normalized = (
-            len(self._shipments)
-            / max(float(self.max_lead_time), 1.0)
-        )
+        # count_normalized = (
+        #     len(self._shipments)
+        #     / max(float(self.max_lead_time), 1.0)
+        # )
 
-        mean_age_normalized = (
-            float(np.mean(ages))
-            / max(float(self.max_lead_time), 1.0)
-        )
+        # mean_age_normalized = (
+        #     float(np.mean(ages))
+        #     / max(float(self.max_lead_time), 1.0)
+        # )
 
-        oldest_age_normalized = (
-            float(np.max(ages))
-            / max(float(self.max_lead_time), 1.0)
-        )
+        # oldest_age_normalized = (
+        #     float(np.max(ages))
+        #     / max(float(self.max_lead_time), 1.0)
+        # )
 
-        return np.array(
-            [
-                count_normalized,
-                mean_age_normalized,
-                oldest_age_normalized,
-            ],
-            dtype=np.float32,
-        )
+        # return np.array(
+        #     [
+        #         count_normalized,
+        #         mean_age_normalized,
+        #         oldest_age_normalized,
+        #     ],
+        #     dtype=np.float32,
+        # )
 
     def _get_obs(self) -> dict[str, np.ndarray]:
 

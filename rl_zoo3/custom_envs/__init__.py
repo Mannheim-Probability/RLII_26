@@ -1,9 +1,6 @@
 import gymnasium as gym
 
 from rl_zoo3.custom_envs.supply_chain import SupplyChainEnv
-from rl_zoo3.custom_envs.supply_chain_nons import SupplyChainNonSEnv #kleiner state
-from rl_zoo3.custom_envs.supply_chain_nons2 import SupplyChainNonS2Env #order history
-from rl_zoo3.custom_envs.supply_chain_nons3 import SupplyChainNonS3Env #ein/zwei tricks
 from rl_zoo3.custom_envs.supply_chain_nons4 import SupplyChainNonS4Env
 from rl_zoo3.custom_envs.supply_chain_nons5 import SupplyChainNonS5Env #enl state mit tricks
 from rl_zoo3.custom_envs.supply_chain_nons6 import SupplyChainNonS6Env #fast
@@ -22,12 +19,6 @@ if "SupplyChain-v0" not in gym.envs.registry:
         entry_point=SupplyChainEnv,
     )
 
-if "SupplyChainNonS-v0" not in gym.envs.registry:
-    gym.register(
-        id="SupplyChainNonS-v0",
-        entry_point=SupplyChainNonSEnv,
-    )
-
 if "SupplyChain-v1" not in gym.envs.registry:
     gym.register(
         id="SupplyChain-v1",
@@ -38,18 +29,6 @@ if "SupplyChain-v2" not in gym.envs.registry:
     gym.register(
         id="SupplyChain-v2",
         entry_point=SupplyChainExO2Env,
-    )
-
-if "SupplyChainNonS-v1" not in gym.envs.registry:
-    gym.register(
-        id="SupplyChainNonS-v1",
-        entry_point=SupplyChainNonS2Env,
-    )
-
-if "SupplyChainNonS-v2" not in gym.envs.registry:
-    gym.register(
-        id="SupplyChainNonS-v2",
-        entry_point=SupplyChainNonS3Env,
     )
 
 if "SupplyChainNonS-v3" not in gym.envs.registry:

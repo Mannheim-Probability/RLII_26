@@ -381,39 +381,6 @@ class SupplyChainNonS4Env(gym.Env):
 
         return features
 
-    # def _get_obs(self) -> dict[str, np.ndarray]:
-    #     obs = {
-    #         "inventory": np.array(
-    #             [self.inventory],
-    #             dtype=np.float32,
-    #         ),
-    #         "demand": np.array(
-    #             [self.demand],
-    #             dtype=np.float32,
-    #         ),
-    #         "days_from_release": np.array(
-    #             [self._get_days_from_release(), self._get_days_from_release()**2, self._get_days_from_release()**3],
-    #             dtype=np.float32,
-    #         ),
-    #         "in_transit": np.array(
-    #             [self._get_in_transit()],
-    #             dtype=np.float32,
-    #         ),
-    #         "order_history": self.order_history.copy(),
-    #         "exp_demand": self._get_current_demand_lambda(),
-    #     }
-    #     for key, value in obs.items():
-    #         space = self.observation_space[key]
-
-    #         print(
-    #             key,
-    #             "actual:", np.asarray(value).shape,
-    #             "expected:", getattr(space, "shape", None),
-    #             "value:", value,
-    #         )
-
-
-    #     return obs
     
     def _get_obs(self) -> dict[str, np.ndarray]:
 
