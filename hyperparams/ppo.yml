@@ -53,6 +53,14 @@ SupplyChainNonS-v5:
   # gae_lambda: 1
   # gamma: 1
 
+SupplyChainNonS-v6:
+  n_timesteps: !!float 1e7
+  policy: 'MultiInputPolicy'
+  n_steps: 512
+  batch_size: 128
+  # gae_lambda: 1
+  # gamma: 1
+
 SupplyChainNonS-v7:
   n_timesteps: !!float 1e7
   policy: 'MultiInputPolicy'
