@@ -17,13 +17,13 @@ PYTHON="${PYTHON:-$REPO_ROOT/.venv/bin/python}"
 
 # Parameters students will most often change.
 SAMPLER="${1:-tpe}"
-N_TRIALS="${2:-20}"
+N_TRIALS="${2:-50}"
 LEAD_TIME_MEAN="${3:-20}"
 PRUNER="${PRUNER:-median}"
-STUDY_NAME="${STUDY_NAME:-ppo-supplychaintest}"
+STUDY_NAME="${STUDY_NAME:-ppo-supplychaintest-mean-$LEAD_TIME_MEAN}"
 
 # Budget for each trial.
-TIMESTEPS_PER_TRIAL="${TIMESTEPS_PER_TRIAL:-1000000}"
+TIMESTEPS_PER_TRIAL="${TIMESTEPS_PER_TRIAL:-10000000}"
 N_EVALUATIONS="${N_EVALUATIONS:-5}"
 EVAL_EPISODES="${EVAL_EPISODES:-5}"
 N_STARTUP_TRIALS="${N_STARTUP_TRIALS:-5}"
@@ -31,7 +31,7 @@ N_JOBS="${N_JOBS:-1}"
 SEED="${SEED:-0}"
 
 OUTPUT_DIR="${OUTPUT_DIR:-$REPO_ROOT/logs/lecture_03/hpo}"
-DATABASE="${DATABASE:-$OUTPUT_DIR/ppo_supplychaintest.db}"
+DATABASE="${DATABASE:-$OUTPUT_DIR/ppo_supplychaintest_mean_$LEAD_TIME_MEAN.db}"
 STORAGE="sqlite:///$DATABASE"
 
 case "$SAMPLER" in
@@ -102,4 +102,4 @@ echo
     --wandb-project-name test_sc \
     --wandb-entity RL2_2026 \
     --wandb-group test_sc \
-    -tags "$LEAD_TIME_MEAN"
+    -tags train_mean_"$LEAD_TIME_MEAN"

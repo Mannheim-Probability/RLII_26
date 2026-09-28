@@ -80,7 +80,7 @@ SupplyChain-v2:
   policy: 'MultiInputPolicy'
   n_steps: 512
   batch_size: 128
-
+#tiny, kleine nsteps, activation
 
 
 atari:
