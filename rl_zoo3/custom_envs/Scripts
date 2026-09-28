@@ -1,0 +1,31 @@
+
+# Für Training
+
+for lead_time in 10 20 30; do
+  echo "Training with lead_time=${lead_time}"
+
+  python train.py \
+    --algo ppo \
+    --env SupplyChainNonS-v4 \
+    --seed 0 \
+    --device cpu \
+    --eval-freq -1 \
+    --env-kwargs lead_time:$lead_time \
+    -params n_envs:1 n_steps:512 batch_size:64 n_epochs:1 \
+    --track \
+    --wandb-project-name test_sc \
+    --wandb-entity RL2_2026 \
+    --wandb-group test_sc
+done
+
+# Für Check
+
+python train.py \
+  --algo ppo \
+  --env SupplyChainNonS-v4\
+  --seed 0 \
+  --device cpu \
+  --eval-freq -1 \
+  --env-kwargs "render_mode:'human'" \
+  -params n_envs:1 n_steps:512 batch_size:128 n_epochs:1
+
