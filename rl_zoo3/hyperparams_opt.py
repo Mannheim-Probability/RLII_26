@@ -113,9 +113,9 @@ def sample_ppo_params(trial: optuna.Trial, n_actions: int, n_envs: int, addition
     :return:
     """
     # From 2**5=32 to 2**10=1024
-    batch_size_pow = trial.suggest_int("batch_size_pow", 2, 10)
+    batch_size_pow = trial.suggest_int("batch_size_pow", 6, 11)
     # From 2**5=32 to 2**12=4096
-    n_steps_pow = trial.suggest_int("n_steps_pow", 5, 12)
+    n_steps_pow = trial.suggest_int("n_steps_pow", 7, 12)
     one_minus_gamma = trial.suggest_float("one_minus_gamma", 0.0001, 0.03, log=True)
     one_minus_gae_lambda = trial.suggest_float("one_minus_gae_lambda", 0.0001, 0.1, log=True)
 
@@ -125,7 +125,7 @@ def sample_ppo_params(trial: optuna.Trial, n_actions: int, n_envs: int, addition
     n_epochs = trial.suggest_categorical("n_epochs", [1, 5, 10, 20])
 
     max_grad_norm = trial.suggest_float("max_grad_norm", 0.3, 2)
-    net_arch = trial.suggest_categorical("net_arch", ["tiny", "small", "medium"])
+    net_arch = trial.suggest_categorical("net_arch", ["small", "medium"])
     activation_fn = trial.suggest_categorical("activation_fn", ["tanh", "relu"])
     # lr_schedule = "constant"
     # Uncomment to enable learning rate schedule
