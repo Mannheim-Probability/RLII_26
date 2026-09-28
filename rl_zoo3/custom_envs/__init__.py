@@ -64,9 +64,9 @@ if "SupplyChainNonS-v4" not in gym.envs.registry:
         entry_point=SupplyChainNonS5Env,
     )
 
-if "SupplyChainNonS-v5" not in gym.envs.registry:
+if "SupplyChainNonS-v6" not in gym.envs.registry:
     gym.register(
-        id="SupplyChainNonS-v5",
+        id="SupplyChainNonS-v6",
         entry_point=SupplyChainNonS6Env,
     )
 
