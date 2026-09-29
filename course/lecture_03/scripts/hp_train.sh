@@ -20,7 +20,7 @@ SAMPLER="${1:-tpe}"
 N_TRIALS="${2:-50}"
 LEAD_TIME_MEAN="${3:-20}"
 PRUNER="${PRUNER:-median}"
-STUDY_NAME="${STUDY_NAME:-ppo-supplychaintest-mean-$LEAD_TIME_MEAN}"
+STUDY_NAME="${STUDY_NAME:-ppo-supplychain-mean-$LEAD_TIME_MEAN}"
 
 # Budget for each trial.
 TIMESTEPS_PER_TRIAL="${TIMESTEPS_PER_TRIAL:-10000000}"
@@ -31,7 +31,7 @@ N_JOBS="${N_JOBS:-1}"
 SEED="${SEED:-0}"
 
 OUTPUT_DIR="${OUTPUT_DIR:-$REPO_ROOT/logs/lecture_03/hpo}"
-DATABASE="${DATABASE:-$OUTPUT_DIR/ppo_supplychaintest_mean_$LEAD_TIME_MEAN.db}"
+DATABASE="${DATABASE:-$OUTPUT_DIR/ppo_supplychain_mean_$LEAD_TIME_MEAN.db}"
 STORAGE="sqlite:///$DATABASE"
 
 case "$SAMPLER" in

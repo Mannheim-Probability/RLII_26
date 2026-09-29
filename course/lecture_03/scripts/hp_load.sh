@@ -15,11 +15,12 @@ PYTHON="${PYTHON:-$REPO_ROOT/.venv/bin/python}"
 OPTUNA="${OPTUNA:-$REPO_ROOT/.venv/bin/optuna}"
 
 LEAD_TIME_MEAN="${1:-30}"
+TRIAL_ID="${2:-}"
 
 
-STUDY_NAME="${STUDY_NAME:-ppo-supplychaintest-mean-$LEAD_TIME_MEAN}"
+STUDY_NAME="${STUDY_NAME:-ppo-supplychain-mean-$LEAD_TIME_MEAN}"
 OUTPUT_DIR="${OUTPUT_DIR:-$REPO_ROOT/logs/lecture_03/hpo}"
-DATABASE="${DATABASE:-$OUTPUT_DIR/ppo_supplychaintest_mean_$LEAD_TIME_MEAN.db}"
+DATABASE="${DATABASE:-$OUTPUT_DIR/ppo_supplychain_mean_$LEAD_TIME_MEAN.db}"
 STORAGE="sqlite:///$DATABASE"
 
 if [[ ! -f "$DATABASE" ]]; then
@@ -59,14 +60,13 @@ echo "=========="
     --flatten
 
 # With no trial number, this script only inspects the study.
-if [[ $# -eq 0 ]]; then
+if [[ -z "$TRIAL_ID" ]]; then
     echo
     echo "To train a fresh agent with one trial's hyperparameters, run:"
     echo "  bash course/lecture_03/scripts/hp_load.sh TRIAL_NUMBER"
     exit 0
 fi
 
-TRIAL_ID="$2"
 if [[ ! "$TRIAL_ID" =~ ^[0-9]+$ ]]; then
     echo "Trial number must be a non-negative integer."
     exit 2
