@@ -14,9 +14,12 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 PYTHON="${PYTHON:-$REPO_ROOT/.venv/bin/python}"
 OPTUNA="${OPTUNA:-$REPO_ROOT/.venv/bin/optuna}"
 
-STUDY_NAME="${STUDY_NAME:-ppo-lunarlander}"
+LEAD_TIME_MEAN="${1:-30}"
+
+
+STUDY_NAME="${STUDY_NAME:-ppo-supplychaintest-mean-$LEAD_TIME_MEAN}"
 OUTPUT_DIR="${OUTPUT_DIR:-$REPO_ROOT/logs/lecture_03/hpo}"
-DATABASE="${DATABASE:-$OUTPUT_DIR/ppo_lunarlander.db}"
+DATABASE="${DATABASE:-$OUTPUT_DIR/ppo_supplychaintest_mean_$LEAD_TIME_MEAN.db}"
 STORAGE="sqlite:///$DATABASE"
 
 if [[ ! -f "$DATABASE" ]]; then
@@ -63,13 +66,13 @@ if [[ $# -eq 0 ]]; then
     exit 0
 fi
 
-TRIAL_ID="$1"
+TRIAL_ID="$2"
 if [[ ! "$TRIAL_ID" =~ ^[0-9]+$ ]]; then
     echo "Trial number must be a non-negative integer."
     exit 2
 fi
 
-FINAL_TIMESTEPS="${FINAL_TIMESTEPS:-1000000}"
+FINAL_TIMESTEPS="${FINAL_TIMESTEPS:-10000000}"
 FINAL_SEED="${FINAL_SEED:-0}"
 FINAL_EVAL_FREQ="${FINAL_EVAL_FREQ:-10000}"
 FINAL_EVAL_EPISODES="${FINAL_EVAL_EPISODES:-10}"
@@ -88,7 +91,8 @@ echo "The Optuna study stores hyperparameters, not trained PPO weights."
 
 "$PYTHON" "$REPO_ROOT/train.py" \
     --algo ppo \
-    --env LunarLander-v3 \
+    --env SupplyChainNonS-v6 \
+    --env-kwargs lead_time_mean:"$LEAD_TIME_MEAN" \
     --n-timesteps "$FINAL_TIMESTEPS" \
     --seed "$FINAL_SEED" \
     --study-name "$STUDY_NAME" \
@@ -98,4 +102,9 @@ echo "The Optuna study stores hyperparameters, not trained PPO weights."
     --eval-episodes "$FINAL_EVAL_EPISODES" \
     --n-eval-envs 1 \
     --log-folder "$FINAL_DIR" \
-    --uuid
+    --uuid \
+    --track \
+    --wandb-project-name SupplyChainOpt \
+    --wandb-entity RL2_2026 \
+    --wandb-group SupplyChainOpt \
+    -tags enjoy_mean_"$LEAD_TIME_MEAN"
