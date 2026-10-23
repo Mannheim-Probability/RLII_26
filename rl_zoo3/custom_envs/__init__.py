@@ -5,6 +5,7 @@ from rl_zoo3.custom_envs.supply_chain_nons4 import SupplyChainNonS4Env
 from rl_zoo3.custom_envs.supply_chain_nons5 import SupplyChainNonS5Env #enl state mit tricks
 from rl_zoo3.custom_envs.supply_chain_nons6 import SupplyChainNonS6Env #fast
 from rl_zoo3.custom_envs.supply_chain_nons7 import SupplyChainNonS7Env #andere history, mit probabilistic forecast
+from rl_zoo3.custom_envs.supply_chain_nons_da9 import SupplyChainNonSDA9Env
 from rl_zoo3.custom_envs.supply_chain_exo import SupplyChainExOEnv
 from rl_zoo3.custom_envs.supply_chain_exo2 import SupplyChainExO2Env
 
@@ -53,4 +54,10 @@ if "SupplyChainNonS-v7" not in gym.envs.registry:
     gym.register(
         id="SupplyChainNonS-v7",
         entry_point=SupplyChainNonS7Env,
+    )
+
+if "SupplyChainNonS_DA-v9" not in gym.envs.registry:
+    gym.register(
+        id="SupplyChainNonS_DA-v9",
+        entry_point=SupplyChainNonSDA9Env,
     )

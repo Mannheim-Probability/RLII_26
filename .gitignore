@@ -4,6 +4,7 @@ logs
 .coverage
 .coverage.*
 .idea/
+.DS_Store
 cluster_sbatch.sh
 cluster_sbatch_mpi.sh
 cluster_torchy.sh
