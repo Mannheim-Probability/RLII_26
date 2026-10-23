@@ -117,7 +117,7 @@ class SupplyChainNonS6Env(gym.Env):
         demand_intro_end_ratio: float = 0.40,
         demand_end_ratio: float = 0.15,
 
-        lead_time_mean: float = 10.0,
+        lead_time_mean: float = 60.0,
         lead_time_std: float = 2,
         max_lead_time: int = 100,
         selling_price: float = 20.0,
