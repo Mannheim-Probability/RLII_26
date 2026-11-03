@@ -14,6 +14,9 @@ from rl_zoo3.custom_envs.supply_chain_exo import SupplyChainExOEnv
 from rl_zoo3.custom_envs.supply_chain_exo2 import SupplyChainExO2Env
 from rl_zoo3.custom_envs.supply_chain_nons_lt import SupplyChainNonSLtEnv
 from rl_zoo3.custom_envs.supply_chain_satisfied_d import SupplyChainSatisfiedDEnv
+from rl_zoo3.custom_envs.supply_chain_satisfied_d2 import SupplyChainSatisfiedD2Env
+from rl_zoo3.custom_envs.supply_chain_satisfied_d3 import SupplyChainSatisfiedD3Env
+
 
 
 
@@ -103,4 +106,16 @@ if "SupplyChainSatisfiedD-v0" not in gym.envs.registry:
     gym.register(
         id="SupplyChainSatisfiedD-v0",
         entry_point=SupplyChainSatisfiedDEnv,
+    )
+
+if "SupplyChainSatisfiedD-v2" not in gym.envs.registry:
+    gym.register(
+        id="SupplyChainSatisfiedD-v2",
+        entry_point=SupplyChainSatisfiedD2Env,
+    )
+
+if "SupplyChainSatisfiedD-v3" not in gym.envs.registry:
+    gym.register(
+        id="SupplyChainSatisfiedD-v3",
+        entry_point=SupplyChainSatisfiedD3Env,
     )

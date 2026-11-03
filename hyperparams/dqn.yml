@@ -4,8 +4,19 @@ default:
   policy: 'MlpPolicy'
 
 SupplyChainNonS_DA-v9:
-  n_timesteps: !!float 1e6
   policy: 'MultiInputPolicy'
+  n_timesteps: !!float 1e7
+  buffer_size: 500000
+  learning_rate: !!float 0.000352
+  gamma: 0.999655
+  batch_size: 4
+  #learning_starts: 100000
+  target_update_interval: 3795
+  train_freq: 5
+  gradient_steps: 1
+  exploration_fraction: 0.079
+  exploration_final_eps: 0.006
+  policy_kwargs: "dict(net_arch=[64, 64])"
 
 atari:
   env_wrapper:

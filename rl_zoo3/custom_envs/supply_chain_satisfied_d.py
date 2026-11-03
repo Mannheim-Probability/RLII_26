@@ -5,6 +5,8 @@ from typing import Any, Optional
 import gymnasium as gym
 from gymnasium import spaces
 import numpy as np
+import math
+
 
 
 _FLOAT32 = np.dtype(np.float32)
@@ -54,17 +56,18 @@ class SupplyChainSatisfiedDEnv(gym.Env):
         purchase_cost: float = 2.0,
         holding_cost: float = 0.25,
         overflow_cost: float = 8.0,
-        reward_max: float = 1000000.0,
-        reward_min: float = 1000.0,
+        reward_max: float = 10000.0,
+        reward_sat_min: float = 1000.0,
+        reward_loss_min: float = -1000,
         lost_sales_cost: float = 10.0,
         episode_length: int = 1100,
+        inventory_weight: float = 0.01,
         initial_inventory: Optional[int] = None,
         order_history_length: Optional[int] = None,
         render_mode: Optional[str] = None,
         # Service objective: 98% of UNITS demanded in each service window.
-        service_target: float = 0.98,
+        service_target: float = 1,
         service_reward_scale: float = 100.0,
-        service_shortfall_penalty: float = 25.0,
         # Fixed size of each service evaluation window (in days).
         # The final window in a lifecycle phase may be shorter.
         service_window_days: int = 8,
@@ -75,6 +78,11 @@ class SupplyChainSatisfiedDEnv(gym.Env):
         # Set to zero for a pure service objective.
         operating_cost_weight: float = 0.01,
         operating_cost_divisor: float = 2000.0,
+        ###############
+        #service_reward_scale: float = 1.0,
+        service_under_weight: float = 25.0,
+        service_over_weight: float = 12.5,
+        service_reward_shape: str = "linear",   # oder "quadratic"
     ):
         super().__init__()
 
@@ -111,8 +119,6 @@ class SupplyChainSatisfiedDEnv(gym.Env):
             raise ValueError("lead_time_std must be >= 0 and lead_time_mean > 0")
         if not 0.0 < service_target <= 1.0:
             raise ValueError("service_target must be in (0, 1]")
-        if service_reward_scale <= 0.0 or service_shortfall_penalty < 0.0:
-            raise ValueError("service_reward_scale > 0 and service_shortfall_penalty >= 0 required")
         if operating_cost_weight < 0.0 or operating_cost_divisor <= 0.0:
             raise ValueError("operating_cost_weight >= 0 and operating_cost_divisor > 0 required")
         if (
@@ -151,7 +157,9 @@ class SupplyChainSatisfiedDEnv(gym.Env):
         self.lost_sales_cost = float(lost_sales_cost)
         self.episode_length = int(episode_length)
         self.reward_max = float(reward_max)
-        self.reward_min = float(reward_min)
+        self.reward_sat_min = float(reward_sat_min)
+        self.reward_loss_min = float(reward_loss_min)
+        self.inventory_weight = float(inventory_weight)
         self.initial_inventory = int(
             initial_inventory if initial_inventory is not None else self.capacity // 2
         )
@@ -165,7 +173,6 @@ class SupplyChainSatisfiedDEnv(gym.Env):
 
         self.service_target = float(service_target)
         self.service_reward_scale = float(service_reward_scale)
-        self.service_shortfall_penalty = float(service_shortfall_penalty)
         self.dense_service_reward = bool(dense_service_reward)
         self.operating_cost_weight = float(operating_cost_weight)
         self.operating_cost_divisor = float(operating_cost_divisor)
@@ -231,12 +238,21 @@ class SupplyChainSatisfiedDEnv(gym.Env):
         self._service_window_id_by_step = np.full(self.episode_length, -1, dtype=np.int32)
         self._service_window_demand = 0
         self._service_window_sold = 0
+        self.cumu_inventory = 0
         self._service_windows_closed = 0
         self._service_windows_scored = 0
         self._service_windows_meeting_target = 0
         self._episode_total_demand = 0
         self._episode_total_sold = 0
         self._build_lookup_tables()
+        ############
+        if service_under_weight < service_over_weight:
+            raise ValueError("Unterschreiten sollte mindestens so teuer sein wie Überschreiten")
+        if service_reward_shape not in {"linear", "quadratic"}:
+            raise ValueError("service_reward_shape must be 'linear' or 'quadratic'")
+        self.service_under_weight = float(service_under_weight)
+        self.service_over_weight = float(service_over_weight)
+        self.service_reward_shape = service_reward_shape
 
     def _build_service_windows(self) -> None:
         """Create consecutive 8-day windows inside each lifecycle phase.
@@ -268,35 +284,53 @@ class SupplyChainSatisfiedDEnv(gym.Env):
 
         self._service_window_demand = 0
         self._service_window_sold = 0
+        self.cumu_inventory = 0
         self._service_windows_closed = 0
         self._service_windows_scored = 0
         self._service_windows_meeting_target = 0
         self._episode_total_demand = 0
         self._episode_total_sold = 0
 
+    # def service_reward_function(self, x: float) -> float:
+    #     """Editable f: [0, 1] -> R, with a plateau at the 98% target.
+
+    #     Example with default parameters:
+    #         x = 0.90 -> -100
+    #         x = 0.95 ->   25
+    #         x = 0.98 ->  100
+    #         x = 1.00 ->  100
+
+    #     The plateau means there is no additional service reward for 99% or
+    #     100% instead of 98%. The optional cost term favors efficient service.
+    #     """
+    #     x = float(np.clip(x, 0.0, 1.0))
+    #     if self.service_target - x >= 0:
+    #         #return (self.reward_max - self.reward_loss_min) / self.service_target * x + self.reward_loss_min
+    #         k = 5.0 / self.service_target  # controls steepness
+
+    #         return (
+    #             self.reward_loss_min
+    #             + (self.reward_max - self.reward_loss_min)
+    #             * (
+    #                 math.tanh(k * (x - self.service_target / 2))
+    #                 + math.tanh(k * self.service_target / 2)
+    #             )
+    #             / (2 * math.tanh(k * self.service_target / 2))
+    #         )
+    #     else:
+    #         return - ((self.reward_max - self.reward_sat_min) / (1 - self.service_target)) * (x - (1 + (self.reward_sat_min * (1 - self.service_target) / (self.reward_max - self.reward_sat_min))))
+
     def service_reward_function(self, x: float) -> float:
-        """Editable f: [0, 1] -> R, with a plateau at the 98% target.
-
-        Example with default parameters:
-            x = 0.90 -> -100
-            x = 0.95 ->   25
-            x = 0.98 ->  100
-            x = 1.00 ->  100
-
-        The plateau means there is no additional service reward for 99% or
-        100% instead of 98%. The optional cost term favors efficient service.
-        """
+        """Spitze bei service_target, Unterschreiten teurer als Überschreiten."""
         x = float(np.clip(x, 0.0, 1.0))
-        x = 1
-        if self.service_target - x >= 0:
-            #shortfall = self.service_target - x
-            return (self.reward_max - self.reward_min) / self.service_target * x + self.reward_min
-        else:
-            #print("R:", - ((self.reward_max - self.reward_min) / (1 - self.service_target)) * (x - (1 + (self.reward_min * (1 - self.service_target) / (self.reward_max - self.reward_min)))))
-            return - ((self.reward_max - self.reward_min) / (1 - self.service_target)) * (x - (1 + (self.reward_min * (1 - self.service_target) / (self.reward_max - self.reward_min))))
-        # return self.service_reward_scale * (
-        #     1.0 - self.service_shortfall_penalty * shortfall
-        # )
+        d = x - self.service_target
+        w = self.service_over_weight if d > 0 else self.service_under_weight
+        if self.service_reward_shape == "quadratic":
+            penalty = w * d * d
+        else:  # "linear"
+            penalty = w * abs(d)
+        return self.service_reward_scale * (1.0 - penalty)
+
 
     def _build_lookup_tables(self) -> None:
         horizons = [int(h) for h in self.demand_forecast_horizons]
@@ -585,7 +619,7 @@ class SupplyChainSatisfiedDEnv(gym.Env):
         return obs, info
 
     def _update_service_reward(
-        self, *, sold: int, demand: int
+        self, *, sold: int, demand: int, inventory: int
     ) -> tuple[float, dict[str, Any]]:
         """Calculate the 8-day fill-rate reward and update service counters.
 
@@ -611,6 +645,7 @@ class SupplyChainSatisfiedDEnv(gym.Env):
 
             self._service_window_demand += demand
             self._service_window_sold += sold
+            self.cumu_inventory += inventory
             if self._service_window_demand > 0:
                 fill_rate = self._service_window_sold / self._service_window_demand
                 score = self.service_reward_function(fill_rate)
@@ -619,7 +654,10 @@ class SupplyChainSatisfiedDEnv(gym.Env):
             if self.dense_service_reward:
                 reward = (score if score is not None else 0.0) - previous_score
             elif closed and score is not None:
-                reward = score
+                if fill_rate <= self.service_target:
+                    reward = score
+                else:
+                    reward = score - self.inventory_weight * self.cumu_inventory
 
             if closed:
                 self._service_windows_closed += 1
@@ -634,8 +672,9 @@ class SupplyChainSatisfiedDEnv(gym.Env):
         if closed:
             self._service_window_sold = 0
             self._service_window_demand = 0
+            self.cumu_inventory = 0
 
-        return float(reward), info
+        return float(reward), info, fill_rate
 
     def _get_service_reward_info(
         self,
@@ -699,15 +738,17 @@ class SupplyChainSatisfiedDEnv(gym.Env):
         sampled_lead_time = self._place_end_of_period_order(order_qty)
         ordering_cost = order_qty * self.purchase_cost
 
-        service_reward, service_info = self._update_service_reward(
-            sold=sold, demand=current_demand
+        service_reward, service_info, fill_rate = self._update_service_reward(
+            sold=sold, demand=current_demand, inventory=inventory
         )
         operating_penalty = (
             self.operating_cost_weight
             * (ordering_cost + inventory_holding_cost + excess_order_cost)
             / self.operating_cost_divisor
         )
-        reward = float(service_reward)# - operating_penalty)
+        reward = float(service_reward)# - inventory * self.inventory_weight)
+        reward = reward/100
+        #print("SR:", service_reward)
         self.last_reward = reward
         self._update_order_history(order_qty)
         self.step_count += 1

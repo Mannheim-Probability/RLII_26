@@ -98,8 +98,4 @@ echo
     --storage "$STORAGE" \
     --log-folder "$OUTPUT_DIR/reports" \
     --no-optim-plots \
-    --track \
-    --wandb-project-name test_sc \
-    --wandb-entity RL2_2026 \
-    --wandb-group test_sc \
     -tags train_mean_"$LEAD_TIME_MEAN"

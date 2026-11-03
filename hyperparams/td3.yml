@@ -7,6 +7,14 @@ default:
   noise_type: 'normal'
   noise_std: 0.1
 
+
+SupplyChainNonS-v6:
+  n_timesteps: !!float 1e7
+  policy: 'MultiInputPolicy'
+  learning_rate: !!float 1e-5
+  batch_size: 1024
+  train_freq: 1
+
 # Tuned
 MountainCarContinuous-v0:
   n_timesteps: 300000

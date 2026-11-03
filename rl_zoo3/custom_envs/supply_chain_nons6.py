@@ -125,7 +125,7 @@ class SupplyChainNonS6Env(gym.Env):
         holding_cost: float = 0.25,
         overflow_cost: float = 8.0,
         lost_sales_cost: float = 10,
-        episode_length: int = 1100,
+        episode_length: int = 1024,
         initial_inventory: Optional[int] = None,
         order_history_length: Optional[int] = None,
         render_mode: Optional[str] = None,
@@ -800,6 +800,8 @@ class SupplyChainNonS6Env(gym.Env):
     def step(self, action):
         if not self._is_valid_action(action):
             raise ValueError(f"Invalid action {action!r}")
+        # print("A:", action[0])
+        # print("A1:",1 - action[0])
 
         order_qty = int(
             np.clip(action[0], 0.0, 1.0)
