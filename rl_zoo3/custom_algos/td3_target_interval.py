@@ -26,7 +26,11 @@ class TD3WithTargetInterval(TD3):
         **kwargs: Any,
     ) -> None:
         super().__init__(policy, env, *args, **kwargs)  # type: ignore[arg-type]
-        interval = index(self.policy_delay if target_update_interval is None else target_update_interval)
+        interval = self.policy_delay if target_update_interval is None else target_update_interval
+        self._initialize_target_update_schedule(interval)
+
+    def _initialize_target_update_schedule(self, target_update_interval: int) -> None:
+        interval = index(target_update_interval)
         if interval < 1:
             raise ValueError("target_update_interval must be positive")
 
@@ -37,6 +41,13 @@ class TD3WithTargetInterval(TD3):
 
     def _get_next_target_update_interval(self) -> int:
         return self.target_update_interval
+
+    def _update_target_networks(self) -> None:
+        polyak_update(self.critic.parameters(), self.critic_target.parameters(), self.tau)
+        polyak_update(self.actor.parameters(), self.actor_target.parameters(), self.tau)
+        # Copy BatchNorm running statistics, as in SB3.
+        polyak_update(self.critic_batch_norm_stats, self.critic_batch_norm_stats_target, 1.0)
+        polyak_update(self.actor_batch_norm_stats, self.actor_batch_norm_stats_target, 1.0)
 
     def train(self, gradient_steps: int, batch_size: int = 100) -> None:
         # Follow SB3 TD3.train() with a separate condition for target updates.
@@ -74,12 +85,7 @@ class TD3WithTargetInterval(TD3):
                 self.actor.optimizer.step()
 
             if self._n_updates >= self._next_target_update:
-                polyak_update(self.critic.parameters(), self.critic_target.parameters(), self.tau)
-                polyak_update(self.actor.parameters(), self.actor_target.parameters(), self.tau)
-                # Copy BatchNorm running statistics, as in SB3.
-                polyak_update(self.critic_batch_norm_stats, self.critic_batch_norm_stats_target, 1.0)
-                polyak_update(self.actor_batch_norm_stats, self.actor_batch_norm_stats_target, 1.0)
-
+                self._update_target_networks()
                 self._n_target_updates += 1
                 self.current_target_update_interval = self._get_next_target_update_interval()
                 self._next_target_update = self._n_updates + self.current_target_update_interval

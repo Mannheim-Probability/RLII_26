@@ -7,6 +7,10 @@ from stable_baselines3.td3.policies import TD3Policy
 from rl_zoo3.custom_algos.td3_target_interval import TD3WithTargetInterval
 
 
+def geometric_cycle_length(initial_length: int, gamma: float, cycle_index: int) -> int:
+    return ceil(initial_length * gamma ** (-2 * cycle_index / 3))
+
+
 class ICTD3(TD3WithTargetInterval):
     """TD3 with increasing intervals between target network updates.
 
@@ -36,5 +40,4 @@ class ICTD3(TD3WithTargetInterval):
     def _get_next_target_update_interval(self) -> int:
         if not self.geometric_target_update_intervals:
             return self.current_target_update_interval
-        growth = self.gamma ** (-2 * self._n_target_updates / 3)
-        return ceil(self.initial_target_update_interval * growth)
+        return geometric_cycle_length(self.initial_target_update_interval, self.gamma, self._n_target_updates)

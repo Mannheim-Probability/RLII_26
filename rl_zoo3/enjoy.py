@@ -14,7 +14,7 @@ import rl_zoo3.import_envs  # noqa: F401 pylint: disable=unused-import
 from rl_zoo3 import ALGOS, create_test_env, get_saved_hyperparams
 from rl_zoo3.exp_manager import ExperimentManager
 from rl_zoo3.load_from_hub import download_from_hub
-from rl_zoo3.utils import StoreDict, get_model_path
+from rl_zoo3.utils import OFF_POLICY_ALGOS, StoreDict, get_model_path
 
 
 def enjoy() -> None:  # noqa: C901
@@ -123,9 +123,6 @@ def enjoy() -> None:  # noqa: C901
 
     print(f"Loading {model_path}")
 
-    # Off-policy algorithm only support one env for now
-    off_policy_algos = ["qrdqn", "dqn", "ic_dqn", "ddpg", "sac", "her", "td3", "td3_target_interval", "ic_td3", "tqc"]
-
     set_random_seed(args.seed)
 
     if args.num_threads > 0:
@@ -174,7 +171,7 @@ def enjoy() -> None:  # noqa: C901
     )
 
     kwargs = dict(seed=args.seed)
-    if algo in off_policy_algos:
+    if algo in OFF_POLICY_ALGOS:
         # Dummy buffer size as we don't need memory to enjoy the trained agent
         kwargs.update(dict(buffer_size=1))
         # Hack due to breaking change in v1.6

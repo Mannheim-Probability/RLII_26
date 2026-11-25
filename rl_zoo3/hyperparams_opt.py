@@ -1,3 +1,4 @@
+from functools import partial
 from typing import Any
 
 import numpy as np
@@ -302,7 +303,9 @@ def sample_sac_params(trial: optuna.Trial, n_actions: int, n_envs: int, addition
     return convert_offpolicy_params(hyperparams)
 
 
-def sample_td3_params(trial: optuna.Trial, n_actions: int, n_envs: int, additional_args: dict) -> dict[str, Any]:
+def sample_td3_params(
+    trial: optuna.Trial, n_actions: int, n_envs: int, additional_args: dict, *, sample_tau: bool = True
+) -> dict[str, Any]:
     """
     Sampler for TD3 hyperparams.
 
@@ -316,7 +319,7 @@ def sample_td3_params(trial: optuna.Trial, n_actions: int, n_envs: int, addition
     learning_rate = trial.suggest_float("learning_rate", 1e-5, 0.002, log=True)
     train_freq = trial.suggest_int("train_freq", 1, 10)
     # Polyak coeff
-    tau = trial.suggest_float("tau", 0.001, 0.08, log=True)
+    tau = trial.suggest_float("tau", 0.001, 0.08, log=True) if sample_tau else None
 
     noise_type = trial.suggest_categorical("noise_type", ["ornstein-uhlenbeck", "normal", None])
     noise_std = trial.suggest_float("noise_std", 0, 0.5)
@@ -332,9 +335,10 @@ def sample_td3_params(trial: optuna.Trial, n_actions: int, n_envs: int, addition
         "learning_rate": learning_rate,
         "batch_size_pow": batch_size_pow,
         "train_freq": train_freq,
-        "tau": tau,
         "net_arch": net_arch,
     }
+    if tau is not None:
+        hyperparams["tau"] = tau
 
     if noise_type == "normal":
         hyperparams["action_noise"] = NormalActionNoise(mean=np.zeros(n_actions), sigma=noise_std * np.ones(n_actions))
@@ -504,9 +508,12 @@ HYPERPARAMS_SAMPLER = {
     "a2c": sample_a2c_params,
     "ars": sample_ars_params,
     "ddpg": sample_td3_params,
+    "ddpg_target_interval": sample_td3_params,
     "dqn": sample_dqn_params,
+    "ic_ddpg": sample_td3_params,
     "ic_dqn": sample_ic_dqn_params,
     "ic_td3": sample_td3_params,
+    "ic_td3_polyak": partial(sample_td3_params, sample_tau=False),
     "qrdqn": sample_qrdqn_params,
     "ppo": sample_ppo_params,
     "ppo_lstm": sample_ppo_lstm_params,
@@ -522,9 +529,12 @@ HYPERPARAMS_CONVERTER = {
     "a2c": convert_onpolicy_params,
     "ars": convert_ars_params,
     "ddpg": convert_offpolicy_params,
+    "ddpg_target_interval": convert_offpolicy_params,
     "dqn": convert_offpolicy_params,
+    "ic_ddpg": convert_offpolicy_params,
     "ic_dqn": convert_offpolicy_params,
     "ic_td3": convert_offpolicy_params,
+    "ic_td3_polyak": convert_offpolicy_params,
     "qrdqn": convert_offpolicy_params,
     "ppo": convert_onpolicy_params,
     "ppo_lstm": convert_onpolicy_params,

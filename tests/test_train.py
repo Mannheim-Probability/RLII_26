@@ -25,8 +25,11 @@ experiments["sac-Pendulum-v1"] = ("sac", "Pendulum-v1")
 experiments["td3-Pendulum-v1"] = ("td3", "Pendulum-v1")
 experiments["td3_target_interval-Pendulum-v1"] = ("td3_target_interval", "Pendulum-v1")
 experiments["ic_td3-Pendulum-v1"] = ("ic_td3", "Pendulum-v1")
+experiments["ic_td3_polyak-Pendulum-v1"] = ("ic_td3_polyak", "Pendulum-v1")
 # for DDPG
 experiments["ddpg-Pendulum-v1"] = ("ddpg", "Pendulum-v1")
+experiments["ddpg_target_interval-Pendulum-v1"] = ("ddpg_target_interval", "Pendulum-v1")
+experiments["ic_ddpg-Pendulum-v1"] = ("ic_ddpg", "Pendulum-v1")
 
 
 @pytest.mark.parametrize("experiment", experiments.keys())

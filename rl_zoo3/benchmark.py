@@ -11,7 +11,7 @@ from huggingface_sb3 import EnvironmentName
 from stable_baselines3.common.results_plotter import load_results, ts2xy
 
 from rl_zoo3.load_from_hub import download_from_hub
-from rl_zoo3.utils import get_hf_trained_models, get_latest_run_id, get_saved_hyperparams, get_trained_models
+from rl_zoo3.utils import OFF_POLICY_ALGOS, get_hf_trained_models, get_latest_run_id, get_saved_hyperparams, get_trained_models
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--log-dir", help="Root log folder", default="rl-trained-agents/", type=str)
@@ -51,7 +51,7 @@ for idx, trained_model in enumerate(trained_models.keys()):
     if algo == "her":
         continue
 
-    if algo in ["dqn", "ic_dqn", "qrdqn", "ddpg", "sac", "td3", "td3_target_interval", "ic_td3", "tqc"]:
+    if algo in OFF_POLICY_ALGOS:
         n_envs = 1
         n_timesteps *= args.n_envs
 

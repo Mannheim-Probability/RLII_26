@@ -124,7 +124,8 @@ class ExperimentManager:
             # Take the root folder
             default_path = Path(__file__).parent.parent
 
-        self.config = config or str(default_path / f"hyperparams/{self.algo}.yml")
+        config_algo = {"ddpg_target_interval": "ddpg", "ic_ddpg": "ddpg", "ic_td3_polyak": "td3"}.get(algo, algo)
+        self.config = config or str(default_path / f"hyperparams/{config_algo}.yml")
         self.env_kwargs: dict[str, Any] = env_kwargs or {}
         self.n_timesteps = n_timesteps
         self.normalize = False
