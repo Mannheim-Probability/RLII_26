@@ -1,4 +1,4 @@
-# Hard-Target TD3 v2 auf Helix
+# TD3-Experimente mit Target-Updates auf Helix
 
 ## Checkout und Python-Umgebung
 
@@ -55,4 +55,18 @@ Die Zuordnung einzelner Array-Tasks kann ohne GPU geprüft werden:
 
 ```bash
 .venv/bin/python -m scripts.helix.td3_hard_targets full --task-id 199 --dry-run
+```
+
+## IC-TD3-Polyak-Sweep
+
+Der Polyak-Sweep startet 100 Tasks mit `ic_td3_polyak` auf `LunarLanderContinuous-v3`. Für jede der fünf initialen Zykluslängen `2`, `100`, `1000`, `10000` und `50000` laufen Adam und SGD ohne Momentum jeweils mit den Seeds `0–9`. Der Launcher übergibt die Zykluslänge als `initial_tau_cycle_length`. Der Algorithmus berechnet `tau` aus der aktuellen Zykluslänge.
+
+Trainingsbudget, Auswertung und Slurm-Ressourcen entsprechen dem vollständigen Hard-Target-Sweep. Der Jobname ist `ic-td3-polyak-full`, der W&B-Tag `ic-td3-polyak-adam-sgd-v2`. Die Ergebnisse liegen unter `logs/target_updates_td3/helix-v2/polyak-full/<job-id>` beziehungsweise im Unterordner `polyak-full/<job-id>` bei gesetztem `HELIX_OUTPUT_ROOT`.
+
+```bash
+sbatch scripts/helix/ic_td3_polyak_full.slurm
+```
+
+```bash
+.venv/bin/python -m scripts.helix.td3_hard_targets polyak-full --task-id 99 --dry-run
 ```

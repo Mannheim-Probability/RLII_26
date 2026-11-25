@@ -1,4 +1,4 @@
-"""Run one task of the Helix hard-target TD3 experiment."""
+"""Run one task of a Helix TD3 target-update experiment."""
 
 import argparse
 import json
@@ -19,6 +19,12 @@ PILOT_STEPS = 500_000
 EVAL_FREQ = 25_000
 INTERVALS = (2, 100, 1_000, 10_000, 50_000)
 ALGORITHMS = ("td3_target_interval", "ic_td3")
+POLYAK_ALGORITHM = "ic_td3_polyak"
+SWEEPS = {
+    "pilot": (ALGORITHMS, f"{TAG}-pilot"),
+    "full": (ALGORITHMS, TAG),
+    "polyak-full": ((POLYAK_ALGORITHM,), "ic-td3-polyak-adam-sgd-v2"),
+}
 OPTIMIZERS = ("adam", "sgd")
 
 
@@ -31,12 +37,12 @@ def training_command(
     pilot_steps: int = PILOT_STEPS,
 ) -> tuple[list[str], Path, str]:
     is_pilot = mode == "pilot"
+    algorithms, tag = SWEEPS[mode]
     intervals, optimizers = ((1_000,), (pilot_optimizer,)) if is_pilot else (INTERVALS, OPTIMIZERS)
-    matrix = list(product(ALGORITHMS, intervals, optimizers, range(10)))
+    matrix = list(product(algorithms, intervals, optimizers, range(10)))
     if not 0 <= task_id < len(matrix):
         raise ValueError(f"Task ID {task_id} is outside 0-{len(matrix) - 1} for {mode}")
     algo, interval, optimizer, seed = matrix[task_id]
-    tag = f"{TAG}-pilot" if is_pilot else TAG
     condition = f"{algo}-k{interval}-{optimizer}"
     run_dir = output / mode / job_id / condition / f"seed_{seed}"
     policy = (
@@ -44,11 +50,16 @@ def training_command(
         if optimizer == "adam"
         else "dict(net_arch=[400, 300], optimizer_class=th.optim.SGD, optimizer_kwargs=dict(momentum=0.0))"
     )
-    schedule = (
-        [f"target_update_interval:{interval}"]
-        if algo == "td3_target_interval"
-        else [f"initial_target_update_interval:{interval}", "geometric_target_update_intervals:True"]
-    )
+    if algo == POLYAK_ALGORITHM:
+        tau_options = []
+        schedule = [f"initial_tau_cycle_length:{interval}"]
+    else:
+        tau_options = ["tau:1.0"]
+        schedule = (
+            [f"target_update_interval:{interval}"]
+            if algo == "td3_target_interval"
+            else [f"initial_target_update_interval:{interval}", "geometric_target_update_intervals:True"]
+        )
     eval_options = (
         ["--eval-episodes", "5"] if is_pilot else ["--eval-episodes", "16", "--n-eval-envs", "4", "--vec-env", "subproc"]
     )
@@ -85,7 +96,7 @@ def training_command(
         "--wandb-tags",
         tag,
         "--hyperparams",
-        "tau:1.0",
+        *tau_options,
         "gamma:0.99",
         "policy_delay:2",
         "learning_rate:0.001",
@@ -95,7 +106,7 @@ def training_command(
     return args, run_dir, algo
 
 
-def check_environment() -> None:
+def check_environment(algo: str) -> None:
     from importlib.metadata import version
 
     import gymnasium as gym
@@ -109,8 +120,8 @@ def check_environment() -> None:
     versions = {name: version(name) for name in ("stable-baselines3", "torch", "gymnasium", "wandb", "tensorboard")}
     if not Version("2.9.0") <= Version(versions["stable-baselines3"]) < Version("3"):
         raise RuntimeError(f"This branch requires SB3 >=2.9,<3, found {versions['stable-baselines3']}")
-    if not all(algo in ALGOS for algo in ALGORITHMS):
-        raise RuntimeError("The TD3 variants could not be imported from this checkout")
+    if algo not in ALGOS:
+        raise RuntimeError(f"{algo} could not be imported from this checkout")
     print(f"Python {sys.version.split()[0]} at {sys.executable}; packages {versions}")
     if not torch.cuda.is_available():
         raise RuntimeError(f"PyTorch cannot use CUDA (built for CUDA {torch.version.cuda})")
@@ -185,7 +196,7 @@ def check_pilot(run_dir: Path, algo: str, elapsed: float, pilot_steps: int = PIL
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode", choices=("pilot", "full"))
+    parser.add_argument("mode", choices=tuple(SWEEPS))
     parser.add_argument("--task-id", type=int, default=os.getenv("SLURM_ARRAY_TASK_ID"))
     parser.add_argument("--pilot-optimizer", choices=OPTIMIZERS, default="adam")
     parser.add_argument("--pilot-steps", type=int, default=PILOT_STEPS, help="Environment steps per pilot task")
@@ -204,7 +215,7 @@ def main() -> None:
     if args.dry_run:
         return
 
-    check_environment()
+    check_environment(algo)
     if os.environ.setdefault("WANDB_MODE", "online") not in {"online", "offline"}:
         raise ValueError("Use WANDB_MODE=online or offline to record this experiment")
     run_dir.mkdir(parents=True)
