@@ -6,7 +6,7 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --gres=gpu:A40:1
 #SBATCH --mem=16G
-#SBATCH --time=01:00:00
+#SBATCH --time=00:30:00
 #SBATCH --array=0-19%5
 #SBATCH --output=slurm-%x-%A_%a.out
 

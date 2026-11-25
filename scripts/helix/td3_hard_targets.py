@@ -15,14 +15,21 @@ ENV_ID = "LunarLanderContinuous-v3"
 PROJECT = "target_updates_td3"
 TAG = "td3-hard-targets-adam-sgd-v2"
 FULL_STEPS = 5_000_000
-PILOT_STEPS = 50_000
+PILOT_STEPS = 500_000
 EVAL_FREQ = 25_000
 INTERVALS = (2, 100, 1_000, 10_000, 50_000)
 ALGORITHMS = ("td3_target_interval", "ic_td3")
 OPTIMIZERS = ("adam", "sgd")
 
 
-def training_command(mode: str, task_id: int, job_id: str, output: Path, pilot_optimizer: str) -> tuple[list[str], Path, str]:
+def training_command(
+    mode: str,
+    task_id: int,
+    job_id: str,
+    output: Path,
+    pilot_optimizer: str,
+    pilot_steps: int = PILOT_STEPS,
+) -> tuple[list[str], Path, str]:
     intervals, optimizers = ((1_000,), (pilot_optimizer,)) if mode == "pilot" else (INTERVALS, OPTIMIZERS)
     matrix = list(product(ALGORITHMS, intervals, optimizers, range(10)))
     if not 0 <= task_id < len(matrix):
@@ -57,7 +64,7 @@ def training_command(mode: str, task_id: int, job_id: str, output: Path, pilot_o
         "--num-threads",
         os.getenv("SLURM_CPUS_PER_TASK", "4"),
         "--n-timesteps",
-        str(PILOT_STEPS if mode == "pilot" else FULL_STEPS),
+        str(pilot_steps if mode == "pilot" else FULL_STEPS),
         "--eval-freq",
         str(EVAL_FREQ),
         "--eval-episodes",
@@ -123,7 +130,7 @@ def check_environment() -> None:
     print(f"{ENV_ID} reset and step passed")
 
 
-def check_pilot(run_dir: Path, algo: str, elapsed: float) -> dict:
+def check_pilot(run_dir: Path, algo: str, elapsed: float, pilot_steps: int = PILOT_STEPS) -> dict:
     import torch
     from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
 
@@ -131,7 +138,7 @@ def check_pilot(run_dir: Path, algo: str, elapsed: float) -> dict:
 
     (checkpoint,) = (run_dir / "training").rglob(f"{ENV_ID}.zip")
     model = ALGOS[algo].load(checkpoint, device="cpu", buffer_size=1)
-    if model.num_timesteps != PILOT_STEPS or model._n_target_updates == 0:
+    if model.num_timesteps != pilot_steps or model._n_target_updates == 0:
         raise RuntimeError("The pilot checkpoint lacks its expected training progress or target updates")
     if any(not torch.isfinite(parameter).all().item() for parameter in model.policy.parameters()):
         raise RuntimeError("The pilot checkpoint contains nonfinite network parameters")
@@ -149,12 +156,13 @@ def check_pilot(run_dir: Path, algo: str, elapsed: float) -> dict:
         if not values or any(not math.isfinite(item.value) for item in values):
             raise RuntimeError(f"The pilot has missing or nonfinite scalar values for {key}")
     evaluations = events.Scalars("eval/mean_reward")
-    if [event.step for event in evaluations] != [EVAL_FREQ, PILOT_STEPS]:
-        raise RuntimeError("Expected two pilot evaluations to estimate steady training throughput")
+    expected_steps = list(range(EVAL_FREQ, pilot_steps + 1, EVAL_FREQ))
+    if [event.step for event in evaluations] != expected_steps:
+        raise RuntimeError("The pilot evaluation steps do not match the requested budget and evaluation frequency")
     if not any((run_dir / "wandb").glob("*/run-*.wandb")):
         raise RuntimeError("The pilot did not write a local W&B run record")
 
-    first, last = evaluations
+    first, last = evaluations[0], evaluations[-1]
     steady_seconds = last.wall_time - first.wall_time
     if steady_seconds <= 0:
         raise RuntimeError("Pilot evaluations do not have increasing wall times")
@@ -162,9 +170,10 @@ def check_pilot(run_dir: Path, algo: str, elapsed: float) -> dict:
     return {
         "algorithm": algo,
         "seed": model.seed,
+        "env_steps": pilot_steps,
         "wall_seconds": round(elapsed, 2),
         "env_steps_per_second": round(throughput, 2),
-        "projected_full_hours": round((elapsed + (FULL_STEPS - PILOT_STEPS) / throughput) / 3600, 2),
+        "projected_full_hours": round((elapsed + (FULL_STEPS - pilot_steps) / throughput) / 3600, 2),
         "target_updates": model._n_target_updates,
         "eval_mean_reward": [event.value for event in evaluations],
         "wandb_mode": os.environ["WANDB_MODE"],
@@ -176,15 +185,18 @@ def main() -> None:
     parser.add_argument("mode", choices=("pilot", "full"))
     parser.add_argument("--task-id", type=int, default=os.getenv("SLURM_ARRAY_TASK_ID"))
     parser.add_argument("--pilot-optimizer", choices=OPTIMIZERS, default="adam")
+    parser.add_argument("--pilot-steps", type=int, default=PILOT_STEPS, help="Environment steps per pilot task")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
     if args.task_id is None:
         parser.error("Provide --task-id when running outside a Slurm array")
+    if args.mode == "pilot" and args.pilot_steps < 2 * EVAL_FREQ:
+        parser.error(f"--pilot-steps must be at least {2 * EVAL_FREQ} for two evaluations")
 
     repo = Path(__file__).resolve().parents[2]
     output = Path(os.getenv("HELIX_OUTPUT_ROOT") or repo / "logs" / PROJECT / "helix-v2").expanduser().resolve()
     job_id = os.getenv("SLURM_ARRAY_JOB_ID", "manual")
-    command, run_dir, algo = training_command(args.mode, args.task_id, job_id, output, args.pilot_optimizer)
+    command, run_dir, algo = training_command(args.mode, args.task_id, job_id, output, args.pilot_optimizer, args.pilot_steps)
     print(shlex.join(command))
     if args.dry_run:
         return
@@ -201,7 +213,7 @@ def main() -> None:
     elapsed = time.monotonic() - started
     print(f"Training and evaluation finished in {elapsed:.2f} s")
     if args.mode == "pilot":
-        result = check_pilot(run_dir, algo, elapsed)
+        result = check_pilot(run_dir, algo, elapsed, args.pilot_steps)
         result_path = run_dir / "pilot_result.json"
         result_path.write_text(json.dumps(result, indent=2) + "\n")
         print(f"Pilot checks passed: {result_path}\n{json.dumps(result)}")
