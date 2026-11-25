@@ -8,7 +8,6 @@ import numpy as np
 import math
 
 
-
 _FLOAT32 = np.dtype(np.float32)
 _SERVICE_PHASES = ("introduction", "growth", "maturity", "decline", "saturation")
 

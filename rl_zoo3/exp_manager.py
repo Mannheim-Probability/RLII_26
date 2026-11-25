@@ -117,6 +117,7 @@ class ExperimentManager:
         self.env_name = EnvironmentName(env_id)
         # Custom params
         self.custom_hyperparams = hyperparams
+        self.load_pre_weights = False
         if (Path(__file__).parent / "hyperparams").is_dir():
             # Package version
             default_path = Path(__file__).parent
@@ -242,9 +243,20 @@ class ExperimentManager:
                 device=self.device,
                 **self._hyperparams,
             )
+            self._maybe_load_pre_weights(model)
 
         self._save_config(saved_hyperparams)
         return model, saved_hyperparams
+
+    def _maybe_load_pre_weights(self, model: BaseAlgorithm) -> None:
+        """Initialize a new PPO model from start_weights.json only when requested."""
+        if not self.load_pre_weights:
+            return
+
+        # Import only when enabled to avoid running the policy script at startup.
+        from create_start_policy import load_sparse_ppo
+
+        load_sparse_ppo(model, "start_weights.json")
 
     def learn(self, model: BaseAlgorithm) -> None:
         """
@@ -443,6 +455,18 @@ class ExperimentManager:
     def _preprocess_hyperparams(  # noqa: C901
         self, hyperparams: dict[str, Any]
     ) -> tuple[dict[str, Any], Callable | None, list[BaseCallback], Callable | None]:
+        # Manager-only setting: do not forward it to the SB3 model constructor.
+        load_pre_weights = hyperparams.pop("load_pre_weights", False)
+        if isinstance(load_pre_weights, str):
+            value = load_pre_weights.strip().lower()
+            if value in {"true", "false"}:
+                load_pre_weights = value == "true"
+        if not isinstance(load_pre_weights, bool):
+            raise ValueError("load_pre_weights must be True or False.")
+        if load_pre_weights and self.algo != "ppo":
+            raise ValueError("load_pre_weights=True is only supported for --algo ppo.")
+        self.load_pre_weights = load_pre_weights
+
         self.n_envs = hyperparams.get("n_envs", 1)
 
         if self.verbose > 0:
@@ -833,6 +857,7 @@ class ExperimentManager:
             device=self.device,
             **kwargs,
         )
+        self._maybe_load_pre_weights(model)
 
         eval_env = self.create_envs(n_envs=self.n_eval_envs, eval_env=True)
 

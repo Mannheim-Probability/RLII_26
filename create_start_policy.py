@@ -54,6 +54,11 @@ def load_sparse_ppo(model, json_path):
 # Create environment
 # ----------------------------------------------------------------------
 
+import traceback
+
+print(f"\nExecuting {__file__}, module name: {__name__}")
+traceback.print_stack()
+
 env = gym.make("SupplyChainNonS-v6")
 
 

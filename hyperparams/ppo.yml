@@ -53,14 +53,28 @@ SupplyChainNonS-v5:
   # gae_lambda: 1
   # gamma: 1
 
+# SupplyChainNonS-v6:
+#   n_timesteps: !!float 3e6
+#   policy: 'MultiInputPolicy'
+#   n_steps: 4096
+#   batch_size: 64
+#   gae_lambda: 0.93
+#   gamma: 0.992
+#   learning_rate: !!float 1e-5
+
 SupplyChainNonS-v6:
   n_timesteps: !!float 3e6
   policy: 'MultiInputPolicy'
-  n_steps: 4096
-  batch_size: 64
-  gae_lambda: 0.93
-  gamma: 0.992
-  learning_rate: !!float 1e-5
+  n_steps: 512
+  batch_size: 128
+  gamma: 0.9998697378832547
+  gae_lambda: 0.96285456390578061
+  learning_rate: !!float 1.0069844666150635e-05
+  ent_coef: !!float 3.751329832411648e-07
+  clip_range: 0.4
+  n_epochs: 1
+  max_grad_norm: 0.9250790449557253
+  policy_kwargs: "dict(net_arch=dict(pi=[256, 256], vf=[256, 256]), activation_fn=nn.Tanh)"
   
 
 SupplyChainNonS-v7:

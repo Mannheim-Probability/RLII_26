@@ -19,35 +19,35 @@ def convert_onpolicy_params(sampled_params: dict[str, Any]) -> dict[str, Any]:
     hyperparams["gae_lambda"] = 1 - sampled_params["one_minus_gae_lambda"]
     del hyperparams["one_minus_gae_lambda"]
 
-    net_arch = sampled_params["net_arch"]
-    del hyperparams["net_arch"]
+    # net_arch = sampled_params["net_arch"]
+    # del hyperparams["net_arch"]
 
     for name in ["batch_size", "n_steps"]:
         if f"{name}_pow" in sampled_params:
             hyperparams[name] = 2 ** sampled_params[f"{name}_pow"]
             del hyperparams[f"{name}_pow"]
 
-    net_arch = {
-        "tiny": dict(pi=[64], vf=[64]),
-        "small": dict(pi=[64, 64], vf=[64, 64]),
-        "medium": dict(pi=[256, 256], vf=[256, 256]),
-    }[net_arch]
+    # net_arch = {
+    #     "tiny": dict(pi=[64], vf=[64]),
+    #     "small": dict(pi=[64, 64], vf=[64, 64]),
+    #     "medium": dict(pi=[256, 256], vf=[256, 256]),
+    # }[net_arch]
 
-    activation_fn_name = sampled_params["activation_fn"]
-    del hyperparams["activation_fn"]
+    # activation_fn_name = sampled_params["activation_fn"]
+    # del hyperparams["activation_fn"]
 
-    activation_fn = {
-        "tanh": nn.Tanh,
-        "relu": nn.ReLU,
-        "elu": nn.ELU,
-        "leaky_relu": nn.LeakyReLU,
-    }[activation_fn_name]
+    # activation_fn = {
+    #     "tanh": nn.Tanh,
+    #     "relu": nn.ReLU,
+    #     "elu": nn.ELU,
+    #     "leaky_relu": nn.LeakyReLU,
+    # }[activation_fn_name]
 
     return {
-        "policy_kwargs": {
-            "net_arch": net_arch,
-            "activation_fn": activation_fn,
-        },
+        # "policy_kwargs": {
+        #     "net_arch": net_arch,
+        #     "activation_fn": activation_fn,
+        # },
         **hyperparams,
     }
 
@@ -147,8 +147,8 @@ def sample_ppo_params(trial: optuna.Trial, n_actions: int, n_envs: int, addition
         "clip_range": clip_range,
         "n_epochs": n_epochs,
         "max_grad_norm": max_grad_norm,
-        "net_arch": net_arch,
-        "activation_fn": activation_fn,
+        #"net_arch": net_arch,
+        #"activation_fn": activation_fn,
     }
 
     return convert_onpolicy_params(sampled_params)

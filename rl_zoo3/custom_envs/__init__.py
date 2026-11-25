@@ -7,6 +7,7 @@ from rl_zoo3.custom_envs.supply_chain_nons3 import SupplyChainNonS3Env #ein/zwei
 from rl_zoo3.custom_envs.supply_chain_nons4 import SupplyChainNonS4Env
 from rl_zoo3.custom_envs.supply_chain_nons5 import SupplyChainNonS5Env #enl state mit tricks
 from rl_zoo3.custom_envs.supply_chain_nons6 import SupplyChainNonS6Env #fast
+from rl_zoo3.custom_envs.supply_chain_nons6_jax import SupplyChainNonS6EnvJax #fast
 from rl_zoo3.custom_envs.supply_chain_nons7 import SupplyChainNonS7Env #andere history, mit probabilistic forecast
 from rl_zoo3.custom_envs.supply_chain_nons8 import SupplyChainNonS8Env
 from rl_zoo3.custom_envs.supply_chain_nons_da9 import SupplyChainNonSDA9Env
@@ -78,6 +79,12 @@ if "SupplyChainNonS-v6" not in gym.envs.registry:
         entry_point=SupplyChainNonS6Env,
     )
 
+if "SupplyChainNonS-v6j" not in gym.envs.registry:
+    gym.register(
+        id="SupplyChainNonS-v6j",
+        entry_point=SupplyChainNonS6EnvJax,
+    )
+
 if "SupplyChainNonS-v7" not in gym.envs.registry:
     gym.register(
         id="SupplyChainNonS-v7",
@@ -112,6 +119,12 @@ if "SupplyChainSatisfiedD-v2" not in gym.envs.registry:
     gym.register(
         id="SupplyChainSatisfiedD-v2",
         entry_point=SupplyChainSatisfiedD2Env,
+    )
+
+if "SupplyChainSatisfiedD-v3" not in gym.envs.registry:
+    gym.register(
+        id="SupplyChainSatisfiedD-v3",
+        entry_point=SupplyChainSatisfiedD3Env,
     )
 
 if "SupplyChainSatisfiedD-v3" not in gym.envs.registry:
