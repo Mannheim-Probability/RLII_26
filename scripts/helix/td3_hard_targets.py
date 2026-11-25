@@ -20,10 +20,12 @@ EVAL_FREQ = 25_000
 INTERVALS = (2, 100, 1_000, 10_000, 50_000)
 ALGORITHMS = ("td3_target_interval", "ic_td3")
 POLYAK_ALGORITHM = "ic_td3_polyak"
+FIXED_POLYAK_MODE = "polyak-fixed-full"
 SWEEPS = {
     "pilot": (ALGORITHMS, f"{TAG}-pilot"),
     "full": (ALGORITHMS, TAG),
     "polyak-full": ((POLYAK_ALGORITHM,), "ic-td3-polyak-adam-sgd-v2"),
+    FIXED_POLYAK_MODE: (("td3_target_interval",), "td3-polyak-fixed-adam-sgd-v2"),
 }
 OPTIMIZERS = ("adam", "sgd")
 
@@ -37,20 +39,25 @@ def training_command(
     pilot_steps: int = PILOT_STEPS,
 ) -> tuple[list[str], Path, str]:
     is_pilot = mode == "pilot"
+    is_fixed_polyak = mode == FIXED_POLYAK_MODE
     algorithms, tag = SWEEPS[mode]
     intervals, optimizers = ((1_000,), (pilot_optimizer,)) if is_pilot else (INTERVALS, OPTIMIZERS)
     matrix = list(product(algorithms, intervals, optimizers, range(10)))
     if not 0 <= task_id < len(matrix):
         raise ValueError(f"Task ID {task_id} is outside 0-{len(matrix) - 1} for {mode}")
     algo, interval, optimizer, seed = matrix[task_id]
-    condition = f"{algo}-k{interval}-{optimizer}"
+    interval_label = "kref" if is_fixed_polyak else "k"
+    condition = f"{algo}-{interval_label}{interval}-{optimizer}"
     run_dir = output / mode / job_id / condition / f"seed_{seed}"
     policy = (
         "dict(net_arch=[400, 300], optimizer_class=th.optim.Adam)"
         if optimizer == "adam"
         else "dict(net_arch=[400, 300], optimizer_class=th.optim.SGD, optimizer_kwargs=dict(momentum=0.0))"
     )
-    if algo == POLYAK_ALGORITHM:
+    if is_fixed_polyak:
+        tau_options = [f"tau:{2 / (interval + 1)}"]
+        schedule = ["target_update_interval:1"]
+    elif algo == POLYAK_ALGORITHM:
         tau_options = []
         schedule = [f"initial_tau_cycle_length:{interval}"]
     else:

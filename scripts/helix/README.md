@@ -70,3 +70,13 @@ sbatch scripts/helix/ic_td3_polyak_full.slurm
 ```bash
 .venv/bin/python -m scripts.helix.td3_hard_targets polyak-full --task-id 99 --dry-run
 ```
+
+## TD3-Sweep mit konstantem Polyak-Koeffizienten
+
+Der Vergleich verwendet `td3_target_interval` mit einem Target-Update nach jedem Critic-Gradientenschritt und `policy_delay=2`. Für die Referenzwerte \(K_0\in\{2,100,1000,10000,50000\}\) setzt der Launcher \(\tau=2/(K_0+1)\) über das gesamte Training. `kref` im Logpfad bezeichnet den Referenzwert für \(\tau\).
+
+Das Array umfasst dieselben 100 Kombinationen aus Referenzwert, Optimierer und Seed wie der IC-TD3-Polyak-Sweep. Trainingsbudget, Auswertung und Slurm-Ressourcen entsprechen ebenfalls diesem Sweep. Der W&B-Tag lautet `td3-polyak-fixed-adam-sgd-v2`. Die Ergebnisse liegen standardmäßig unter `logs/target_updates_td3/helix-v2/polyak-fixed-full/<job-id>`.
+
+```bash
+sbatch scripts/helix/td3_polyak_fixed_full.slurm
+```
