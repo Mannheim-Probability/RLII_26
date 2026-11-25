@@ -30,12 +30,13 @@ def training_command(
     pilot_optimizer: str,
     pilot_steps: int = PILOT_STEPS,
 ) -> tuple[list[str], Path, str]:
-    intervals, optimizers = ((1_000,), (pilot_optimizer,)) if mode == "pilot" else (INTERVALS, OPTIMIZERS)
+    is_pilot = mode == "pilot"
+    intervals, optimizers = ((1_000,), (pilot_optimizer,)) if is_pilot else (INTERVALS, OPTIMIZERS)
     matrix = list(product(ALGORITHMS, intervals, optimizers, range(10)))
     if not 0 <= task_id < len(matrix):
         raise ValueError(f"Task ID {task_id} is outside 0-{len(matrix) - 1} for {mode}")
     algo, interval, optimizer, seed = matrix[task_id]
-    tag = f"{TAG}-pilot" if mode == "pilot" else TAG
+    tag = f"{TAG}-pilot" if is_pilot else TAG
     condition = f"{algo}-k{interval}-{optimizer}"
     run_dir = output / mode / job_id / condition / f"seed_{seed}"
     policy = (
@@ -47,6 +48,9 @@ def training_command(
         [f"target_update_interval:{interval}"]
         if algo == "td3_target_interval"
         else [f"initial_target_update_interval:{interval}", "geometric_target_update_intervals:True"]
+    )
+    eval_options = (
+        ["--eval-episodes", "5"] if is_pilot else ["--eval-episodes", "16", "--n-eval-envs", "4", "--vec-env", "subproc"]
     )
     args = [
         sys.executable,
@@ -64,11 +68,10 @@ def training_command(
         "--num-threads",
         os.getenv("SLURM_CPUS_PER_TASK", "4"),
         "--n-timesteps",
-        str(pilot_steps if mode == "pilot" else FULL_STEPS),
+        str(pilot_steps if is_pilot else FULL_STEPS),
         "--eval-freq",
         str(EVAL_FREQ),
-        "--eval-episodes",
-        "5",
+        *eval_options,
         "--log-folder",
         str(run_dir / "training"),
         "--track",

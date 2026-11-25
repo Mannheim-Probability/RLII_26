@@ -30,7 +30,7 @@ squeue -j "$pilot"
 sacct -j "$pilot" --format=JobID,State,Elapsed,MaxRSS,AllocTRES,ExitCode
 ```
 
-Der Pilot startet jeweils zehn Seeds für `td3_target_interval` und `ic_td3` mit (K=1.000), Adam und 500.000 Environment-Schritten. Das Zeitlimit beträgt 30 Minuten pro Task. Für einen kürzeren Pilot lässt sich beim `sbatch`-Aufruf nach dem Skriptnamen beispielsweise `--pilot-steps 250000` setzen. Er verwendet dieselbe Architektur, Lernrate und Evaluationsfrequenz wie der vollständige Sweep. Als separater SGD-Pilot ist `sbatch scripts/helix/td3_hard_targets_test.slurm --pilot-optimizer sgd` möglich.
+Der Pilot startet jeweils zehn Seeds für `td3_target_interval` und `ic_td3` mit (K=1.000), Adam und 500.000 Environment-Schritten. Das Zeitlimit beträgt 30 Minuten pro Task. Für einen kürzeren Pilot lässt sich beim `sbatch`-Aufruf nach dem Skriptnamen beispielsweise `--pilot-steps 250000` setzen. Der Pilot verwendet dieselbe Architektur, Lernrate und Evaluationsfrequenz wie der vollständige Sweep. Pro Evaluation laufen fünf Episoden in einer Evaluationsumgebung. Als separater SGD-Pilot ist `sbatch scripts/helix/td3_hard_targets_test.slurm --pilot-optimizer sgd` möglich.
 
 Jeder Pilot-Task prüft den CUDA-Zugriff mit einer Matrixmultiplikation, die Python-Abhängigkeiten und einen LunarLander-Schritt. Nach dem Training prüft er den Ziel-Update-Zähler, die gespeicherten Netzparameter, geloggte Actor- und Critic-Losses, alle planmäßigen Evaluationen und die lokale W&B-Run-Datei. Ein erfolgreicher Task schreibt eine `pilot_result.json` mit Durchsatz und geschätzter Dauer bis fünf Millionen Schritte. Die Schätzung verwendet die Zeit zwischen der ersten und der letzten Evaluation.
 
@@ -47,7 +47,7 @@ Vor der Einreichung die Pilot-Logs und Laufzeitschätzungen prüfen. Das Full-Ar
 sbatch scripts/helix/td3_hard_targets_full.slurm
 ```
 
-Die 200 Tasks decken beide Algorithmen, Adam und SGD ohne Momentum, (K\in\{2,100,1.000,10.000,50.000\}) und jeweils die Seeds `0–9` ab. Pro Task läuft ein Seed mit fünf Millionen Environment-Schritten, maximal fünf Tasks laufen gleichzeitig. Jedes Training verwendet `tau=1.0`, `gamma=0.99`, `policy_delay=2` und `learning_rate=0.001`. Evaluiert wird alle 25.000 Environment-Schritte mit fünf Episoden.
+Die 200 Tasks decken beide Algorithmen, Adam und SGD ohne Momentum, (K\in\{2,100,1.000,10.000,50.000\}) und jeweils die Seeds `0–9` ab. Pro Task läuft ein Seed mit fünf Millionen Environment-Schritten, maximal fünf Tasks laufen gleichzeitig. Jedes Training verwendet `tau=1.0`, `gamma=0.99`, `policy_delay=2` und `learning_rate=0.001`. Alle 25.000 Environment-Schritte laufen 16 Evaluationsepisoden in vier separaten CPU-Prozessen. Das ergibt 200 Evaluationen und 3.200 Evaluationsepisoden pro Task.
 
 Alle vollständigen Läufe loggen in `RL2_2026/target_updates_td3` mit genau dem Tag `td3-hard-targets-adam-sgd-v2`. Die Pilotläufe erhalten den separaten Tag `td3-hard-targets-adam-sgd-v2-pilot`. Ergebnisse landen standardmäßig in `logs/target_updates_td3/helix-v2`, mit `HELIX_OUTPUT_ROOT` lässt sich ein anderer Pfad wählen. Die Slurm-Logs `slurm-td3-v2-*_*.out` liegen im Einreichungsverzeichnis.
 
