@@ -164,6 +164,9 @@ def train() -> None:
     parser.add_argument(
         "-tags", "--wandb-tags", type=str, default=[], nargs="+", help="Tags for wandb run, e.g.: -tags optimized pr-123"
     )
+    parser.add_argument(
+        "--wandb-exact-tags", action="store_true", help="Use the supplied W&B tags without adding the SB3 version tag"
+    )
 
     args = parser.parse_args()
 
@@ -216,7 +219,7 @@ def train() -> None:
         args.command = " ".join(sys.orig_argv)
 
         run_name = f"{args.env}__{args.algo}__{args.seed}__{int(time.time())}"
-        tags = [*args.wandb_tags, f"v{sb3.__version__}"]
+        tags = args.wandb_tags if args.wandb_exact_tags else [*args.wandb_tags, f"v{sb3.__version__}"]
         run = wandb.init(
             name=run_name,
             project=args.wandb_project_name,

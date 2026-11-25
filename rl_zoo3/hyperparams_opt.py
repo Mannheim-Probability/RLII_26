@@ -349,7 +349,14 @@ def sample_td3_params(trial: optuna.Trial, n_actions: int, n_envs: int, addition
     return convert_offpolicy_params(hyperparams)
 
 
-def sample_dqn_params(trial: optuna.Trial, n_actions: int, n_envs: int, additional_args: dict) -> dict[str, Any]:
+def sample_dqn_params(
+    trial: optuna.Trial,
+    n_actions: int,
+    n_envs: int,
+    additional_args: dict,
+    *,
+    target_interval_name: str = "target_update_interval",
+) -> dict[str, Any]:
     """
     Sampler for DQN hyperparams.
 
@@ -366,7 +373,7 @@ def sample_dqn_params(trial: optuna.Trial, n_actions: int, n_envs: int, addition
 
     exploration_final_eps = trial.suggest_float("exploration_final_eps", 0, 0.2)
     exploration_fraction = trial.suggest_float("exploration_fraction", 0, 0.5)
-    target_update_interval = trial.suggest_int("target_update_interval", 1, 20000, log=True)
+    target_update_interval = trial.suggest_int(target_interval_name, 1, 20000, log=True)
 
     net_arch = trial.suggest_categorical("net_arch", ["small", "medium", "big"])
 
@@ -381,7 +388,7 @@ def sample_dqn_params(trial: optuna.Trial, n_actions: int, n_envs: int, addition
         "subsample_steps": subsample_steps,
         "exploration_fraction": exploration_fraction,
         "exploration_final_eps": exploration_final_eps,
-        "target_update_interval": target_update_interval,
+        target_interval_name: target_update_interval,
         "net_arch": net_arch,
     }
 
@@ -393,6 +400,10 @@ def sample_dqn_params(trial: optuna.Trial, n_actions: int, n_envs: int, addition
         hyperparams["n_quantiles"] = n_quantiles
 
     return convert_offpolicy_params(hyperparams)
+
+
+def sample_ic_dqn_params(trial: optuna.Trial, n_actions: int, n_envs: int, additional_args: dict) -> dict[str, Any]:
+    return sample_dqn_params(trial, n_actions, n_envs, additional_args, target_interval_name="initial_target_update_interval")
 
 
 def sample_her_params(trial: optuna.Trial, hyperparams: dict[str, Any], her_kwargs: dict[str, Any]) -> dict[str, Any]:
@@ -494,12 +505,15 @@ HYPERPARAMS_SAMPLER = {
     "ars": sample_ars_params,
     "ddpg": sample_td3_params,
     "dqn": sample_dqn_params,
+    "ic_dqn": sample_ic_dqn_params,
+    "ic_td3": sample_td3_params,
     "qrdqn": sample_qrdqn_params,
     "ppo": sample_ppo_params,
     "ppo_lstm": sample_ppo_lstm_params,
     "sac": sample_sac_params,
     "tqc": sample_tqc_params,
     "td3": sample_td3_params,
+    "td3_target_interval": sample_td3_params,
     "trpo": sample_trpo_params,
 }
 
@@ -509,11 +523,14 @@ HYPERPARAMS_CONVERTER = {
     "ars": convert_ars_params,
     "ddpg": convert_offpolicy_params,
     "dqn": convert_offpolicy_params,
+    "ic_dqn": convert_offpolicy_params,
+    "ic_td3": convert_offpolicy_params,
     "qrdqn": convert_offpolicy_params,
     "ppo": convert_onpolicy_params,
     "ppo_lstm": convert_onpolicy_params,
     "sac": convert_offpolicy_params,
     "tqc": convert_offpolicy_params,
     "td3": convert_offpolicy_params,
+    "td3_target_interval": convert_offpolicy_params,
     "trpo": convert_onpolicy_params,
 }

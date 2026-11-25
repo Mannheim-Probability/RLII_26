@@ -334,7 +334,7 @@ if __name__ == "__main__":
     print(f"Loading {model_path}")
 
     # Off-policy algorithm only support one env for now
-    off_policy_algos = ["qrdqn", "dqn", "ddpg", "sac", "her", "td3", "tqc"]
+    off_policy_algos = ["qrdqn", "dqn", "ic_dqn", "ddpg", "sac", "her", "td3", "td3_target_interval", "ic_td3", "tqc"]
 
     if algo in off_policy_algos:
         args.n_envs = 1

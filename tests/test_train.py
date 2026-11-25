@@ -12,7 +12,7 @@ def _assert_eq(left, right):
 
 N_STEPS = 100
 
-ALGOS = ("ppo", "a2c", "dqn")
+ALGOS = ("ppo", "a2c", "dqn", "ic_dqn")
 # 'BreakoutNoFrameskip-v4'
 ENV_IDS = ("CartPole-v1",)
 
@@ -23,6 +23,8 @@ experiments["ppo-BipedalWalkerHardcore-v3"] = ("ppo", "BipedalWalkerHardcore-v3"
 experiments["sac-Pendulum-v1"] = ("sac", "Pendulum-v1")
 # for TD3
 experiments["td3-Pendulum-v1"] = ("td3", "Pendulum-v1")
+experiments["td3_target_interval-Pendulum-v1"] = ("td3_target_interval", "Pendulum-v1")
+experiments["ic_td3-Pendulum-v1"] = ("ic_td3", "Pendulum-v1")
 # for DDPG
 experiments["ddpg-Pendulum-v1"] = ("ddpg", "Pendulum-v1")
 
@@ -153,7 +155,8 @@ def test_gym_packages(tmp_path):
     _assert_eq(return_code, 0)
 
 
-def test_wandb_log_path_and_finish(tmp_path, monkeypatch):
+@pytest.mark.parametrize("exact_tags", [False, True])
+def test_wandb_log_path_and_finish(tmp_path, monkeypatch, exact_tags):
     import importlib
     import sys
     from pathlib import Path
@@ -162,6 +165,7 @@ def test_wandb_log_path_and_finish(tmp_path, monkeypatch):
     training = importlib.import_module("rl_zoo3.train")
     calls = []
     paths = []
+    wandb_tags = []
     run = SimpleNamespace(
         config=SimpleNamespace(setdefaults=lambda values: None),
         finish=lambda: calls.append("finish"),
@@ -175,12 +179,20 @@ def test_wandb_log_path_and_finish(tmp_path, monkeypatch):
             save_trained_model=lambda model: calls.append("save"),
         )
 
+    def init_run(**kwargs):
+        wandb_tags.extend(kwargs["tags"])
+        return run
+
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(sys, "argv", ["train.py", "--algo", "ppo", "--env", "CartPole-v1", "--seed", "0", "--track"])
-    monkeypatch.setitem(sys.modules, "wandb", SimpleNamespace(init=lambda **kwargs: run))
+    argv = ["train.py", "--algo", "ppo", "--env", "CartPole-v1", "--seed", "0", "--track", "--wandb-tags", "experiment-tag"]
+    if exact_tags:
+        argv.append("--wandb-exact-tags")
+    monkeypatch.setattr(sys, "argv", argv)
+    monkeypatch.setitem(sys.modules, "wandb", SimpleNamespace(init=init_run))
     monkeypatch.setattr(training, "ExperimentManager", experiment_manager)
     training.train()
 
     assert paths[0].is_absolute()
     assert paths[0].parent == tmp_path / "runs"
     assert calls == ["learn", "save", "finish"]
+    assert wandb_tags == (["experiment-tag"] if exact_tags else ["experiment-tag", f"v{training.sb3.__version__}"])

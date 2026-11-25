@@ -51,7 +51,7 @@ for idx, trained_model in enumerate(trained_models.keys()):
     if algo == "her":
         continue
 
-    if algo in ["dqn", "qrdqn", "ddpg", "sac", "td3", "tqc"]:
+    if algo in ["dqn", "ic_dqn", "qrdqn", "ddpg", "sac", "td3", "td3_target_interval", "ic_td3", "tqc"]:
         n_envs = 1
         n_timesteps *= args.n_envs
 

@@ -1,0 +1,176 @@
+# TD3 Zoo presets with a geometric target update schedule.
+# The cycle length is measured in critic gradient steps.
+default:
+  <<: &target-schedule
+    initial_target_update_interval: 2
+    geometric_target_update_intervals: true
+  n_timesteps: !!float 1e6
+  policy: 'MlpPolicy'
+  train_freq: 1
+  gradient_steps: 1
+  noise_type: 'normal'
+  noise_std: 0.1
+
+MountainCarContinuous-v0:
+  <<: *target-schedule
+  n_timesteps: 300000
+  policy: 'MlpPolicy'
+  noise_type: 'ornstein-uhlenbeck'
+  noise_std: 0.5
+  gradient_steps: 1
+  train_freq: 1
+  learning_rate: !!float 1e-3
+  batch_size: 256
+  policy_kwargs: "dict(net_arch=[400, 300])"
+
+Pendulum-v1:
+  <<: *target-schedule
+  n_timesteps: 20000
+  policy: 'MlpPolicy'
+  gamma: 0.98
+  buffer_size: 200000
+  learning_starts: 10000
+  noise_type: 'normal'
+  noise_std: 0.1
+  gradient_steps: 1
+  train_freq: 1
+  learning_rate: !!float 1e-3
+  policy_kwargs: "dict(net_arch=[400, 300])"
+
+LunarLanderContinuous-v3:
+  <<: *target-schedule
+  n_timesteps: !!float 3e5
+  policy: 'MlpPolicy'
+  gamma: 0.98
+  buffer_size: 200000
+  learning_starts: 10000
+  noise_type: 'normal'
+  noise_std: 0.1
+  gradient_steps: 1
+  train_freq: 1
+  learning_rate: !!float 1e-3
+  policy_kwargs: "dict(net_arch=[400, 300])"
+
+BipedalWalker-v3:
+  <<: *target-schedule
+  n_timesteps: !!float 1e6
+  policy: 'MlpPolicy'
+  gamma: 0.98
+  buffer_size: 200000
+  learning_starts: 10000
+  noise_type: 'normal'
+  noise_std: 0.1
+  gradient_steps: 1
+  train_freq: 1
+  learning_rate: !!float 1e-3
+  policy_kwargs: "dict(net_arch=[400, 300])"
+
+BipedalWalkerHardcore-v3:
+  <<: *target-schedule
+  n_timesteps: !!float 1e7
+  policy: 'MlpPolicy'
+  gamma: 0.99
+  buffer_size: 1000000
+  learning_starts: 10000
+  noise_type: 'normal'
+  noise_std: 0.1
+  batch_size: 256
+  train_freq: 1
+  learning_rate: lin_7e-4
+  policy_kwargs: "dict(net_arch=[400, 300])"
+
+HalfCheetahBulletEnv-v0: &pybullet-defaults
+  <<: *target-schedule
+  n_timesteps: !!float 1e6
+  policy: 'MlpPolicy'
+  gamma: 0.98
+  buffer_size: 200000
+  learning_starts: 10000
+  noise_type: 'normal'
+  noise_std: 0.1
+  gradient_steps: 1
+  train_freq: 1
+  batch_size: 256
+  learning_rate: !!float 7e-4
+  policy_kwargs: "dict(net_arch=[400, 300])"
+
+AntBulletEnv-v0:
+  <<: *pybullet-defaults
+
+HopperBulletEnv-v0:
+  <<: *pybullet-defaults
+
+Walker2DBulletEnv-v0:
+  <<: *pybullet-defaults
+
+
+HumanoidBulletEnv-v0:
+  <<: *target-schedule
+  n_timesteps: !!float 2e6
+  policy: 'MlpPolicy'
+  gamma: 0.98
+  buffer_size: 200000
+  learning_starts: 10000
+  noise_type: 'normal'
+  noise_std: 0.1
+  train_freq: 1
+  learning_rate: !!float 1e-3
+  policy_kwargs: "dict(net_arch=[400, 300])"
+
+ReacherBulletEnv-v0:
+  <<: *pybullet-defaults
+  n_timesteps: !!float 3e5
+
+InvertedDoublePendulumBulletEnv-v0:
+  <<: *pybullet-defaults
+
+InvertedPendulumSwingupBulletEnv-v0:
+  <<: *pybullet-defaults
+  n_timesteps: !!float 3e5
+
+
+MinitaurBulletEnv-v0:
+  <<: *target-schedule
+  n_timesteps: !!float 1e6
+  policy: 'MlpPolicy'
+  gamma: 0.99
+  buffer_size: 1000000
+  noise_type: 'normal'
+  noise_std: 0.1
+  learning_starts: 10000
+  batch_size: 256
+  learning_rate: !!float 1e-3
+  train_freq: 1
+  gradient_steps: 1
+  policy_kwargs: "dict(net_arch=[400, 300])"
+
+# === Mujoco Envs ===
+HalfCheetah-v4: &mujoco-defaults
+  <<: *target-schedule
+  n_timesteps: !!float 1e6
+  policy: 'MlpPolicy'
+  learning_starts: 10000
+  noise_type: 'normal'
+  noise_std: 0.1
+  train_freq: 1
+  gradient_steps: 1
+  learning_rate: !!float 1e-3
+  batch_size: 256
+  policy_kwargs: "dict(net_arch=[400, 300])"
+
+Ant-v4:
+  <<: *mujoco-defaults
+
+Hopper-v4:
+  <<: *mujoco-defaults
+
+Walker2d-v4:
+  <<: *mujoco-defaults
+
+Humanoid-v4:
+  <<: *mujoco-defaults
+  n_timesteps: !!float 2e6
+
+Swimmer-v4:
+  <<: *mujoco-defaults
+  gamma: 0.9999

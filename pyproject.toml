@@ -88,7 +88,7 @@ SBX = "https://github.com/araffin/sbx"
 rl_zoo3 = "rl_zoo3.cli:main"
 
 [tool.setuptools]
-packages = ["rl_zoo3", "rl_zoo3.plots", "rl_zoo3.hyperparams"]
+packages = ["rl_zoo3", "rl_zoo3.plots", "rl_zoo3.hyperparams", "rl_zoo3.custom_algos", "rl_zoo3.custom_algos.ic_dqn"]
 
 [tool.setuptools.package-dir]
 "rl_zoo3.hyperparams" = "hyperparams"

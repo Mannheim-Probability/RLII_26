@@ -24,6 +24,10 @@ from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecEnv,
 # For custom activation fn
 from torch import nn as nn
 
+from rl_zoo3.custom_algos.ic_dqn import ICDQN
+from rl_zoo3.custom_algos.ic_td3 import ICTD3
+from rl_zoo3.custom_algos.td3_target_interval import TD3WithTargetInterval
+
 ALGOS: dict[str, type[BaseAlgorithm]] = {
     "a2c": A2C,
     "ddpg": DDPG,
@@ -31,6 +35,9 @@ ALGOS: dict[str, type[BaseAlgorithm]] = {
     "ppo": PPO,
     "sac": SAC,
     "td3": TD3,
+    "td3_target_interval": TD3WithTargetInterval,
+    "ic_dqn": ICDQN,
+    "ic_td3": ICTD3,
     # SB3 Contrib,
     "ars": ARS,
     "crossq": CrossQ,
